@@ -105,3 +105,6 @@ venv.bak/
 
 # mac os
 ._*
+
+#vscode
+.vscode/
