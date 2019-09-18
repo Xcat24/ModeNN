@@ -18,7 +18,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #Dataset Select
 dataset = 'ORL'
 data_dir = '/disk/Dataset/ORL'
-val_split = 0.1
+val_split = 0.5
 
 #TODO Model Select
 model_name = 'ModeNN'
@@ -29,13 +29,15 @@ input_size = 60*50
 # input_size = 784
 order = 2
 num_classes = 40
-num_epochs = 5
+num_epochs = 50
 batch_size = 2
 learning_rate = 0.001
+weight_decay = 0.001
 
 #others
 output_per = 5
 saved_name = dataset + model_name + 'resize60-50_softmax' + 'val3'
+log_file_name = 'ORL_experiment.txt'
 #================================= Human Setting End ===================================
 
 #Dataset setting
@@ -80,7 +82,7 @@ summary(model, input_size=(input_size,))
 
 # Loss and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
 # Train the model
 total_step = len(train_loader)

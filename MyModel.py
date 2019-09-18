@@ -19,5 +19,5 @@ class ModeNN(nn.Module):
         out = self.de(x)
         out = self.tanh(out)
         out = self.fc(out)
-        out = self.softmax(out)
+        # out = self.softmax(out)
         return out
