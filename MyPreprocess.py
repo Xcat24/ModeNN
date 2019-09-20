@@ -67,8 +67,8 @@ if __name__ == '__main__':
     example = x.__getitem__(0)
     #plot picture
     plt.figure()
-    plt.imshow(example['image'].reshape((60,50)))
-    plt.savefig('./test.jpg')
+    plt.imshow(example['image'].reshape((60,50)), cmap='gray')
+    plt.savefig('/disk/test.jpg')
 
     for i_batch, sample_batched in enumerate(data):
         print(i_batch, sample_batched['image'].size(), sample_batched['labels'].size())

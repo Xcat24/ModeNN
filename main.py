@@ -5,7 +5,7 @@ import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
 from torchsummary import summary
-from MyModel import ModeNN
+import MyModel
 from MyPreprocess import ORLdataset
 
 
@@ -22,11 +22,14 @@ data_dir = '/disk/Dataset/ORL'
 val_split = 0.5
 
 #TODO Model Select
-model_name = 'ModeNN'
+# model_name = 'ModeNN'
+model_name = 'MyCNN'
 
 # Hyper-parameters
-resize=(60, 50)
-input_size = 60*50
+# resize=(60, 50)
+# input_size = 60*50
+resize=(112, 92)
+input_size = 112*92
 # input_size = 784
 order = 2
 num_classes = 40
@@ -77,8 +80,11 @@ test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
 
 # Fully connected neural network with one hidden layer
 
-
-model = ModeNN(input_size, order, num_classes).to(device)
+if model_name == 'ModeNN':
+    model = MyModel.ModeNN(input_size, order, num_classes).to(device)
+if model_name == 'MyCNN':
+    model = MyModel.MyConv2D(in_channel=1, out_channel=32, layer_num=2, kernel_size=3, num_classes=num_classes,
+                             norm=True, dropout=0.25)
 summary(model, input_size=(input_size,))
 
 # Loss and optimizer
