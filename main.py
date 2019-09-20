@@ -15,6 +15,7 @@ torch.backends.cudnn.enabled = True
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #================================== Human Setting ======================================
+#TODO add config file read function and add the conf file to gitignore
 #Dataset Select
 dataset = 'ORL'
 data_dir = '/disk/Dataset/ORL'
