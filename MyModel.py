@@ -43,7 +43,7 @@ class MyConv2D(nn.Module):
               L_{out} = \left\lfloor\frac{L_{in} + 2 \times \text{padding} - \text{dilation}
                         \times (\text{kernel\_size} - 1) - 1}{\text{stride}} + 1\right\rfloor
     """
-    def __init__(self, in_channel, out_channel, layer_num, kernel_size, num_classes, stride=1, padding=None, 
+    def __init__(self, in_channel, out_channel, layer_num, kernel_size, num_classes, stride=1, padding=0, 
                      pooling='Max', pool_shape=(2,2), norm=False, dropout=None):
         super(MyConv2D, self).__init__()
         self.layer_num = layer_num
@@ -52,16 +52,26 @@ class MyConv2D(nn.Module):
         self.dropout = dropout
         self.initconv = nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
         self.conv = nn.Conv2d(out_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
-        self.maxpool = nn.MaxPool2d(shape=pool_shape)
-        self.avgpool = nn.AvgPool2d(shape=pool_shape)
-        self.norm = nn.BatchNorm2d()
+        self.maxpool = nn.MaxPool2d(kernel_size=pool_shape)
+        self.avgpool = nn.AvgPool2d(kernel_size=pool_shape)
+        self.norm = nn.BatchNorm2d(out_channel)
         self.dropout = nn.Dropout2d(dropout)
-        self.fc = nn.Linear(128, num_classes)
+        self.fc1 = nn.Linear(20608,128)
+        self.fc2 = nn.Linear(128, num_classes)
         self.softmax = nn.Softmax(dim=1)
         self.relu = nn.ReLU()
 
     def forward(self, x):
         out = self.initconv(x)
+        if self.norm :
+            out = self.norm(out)
+        out = self.relu(out)
+        if self.pooling:
+            if self.pooling == 'Max':
+                out = self.maxpool(out)
+            elif self.pooling == 'Avg':
+                out = self.avgpool(out)
+
         for _ in range(self.layer_num - 1):
             out = self.conv(out)
             if self.norm :
@@ -77,7 +87,9 @@ class MyConv2D(nn.Module):
             out = self.dropout(out)
 
         out = torch.flatten(out, 1)
-        out = self.fc(out)
+        out = self.fc1(out)
+        out = self.relu(out)
+        out = self.fc2(out)
         out = self.softmax(out)
 
         return out

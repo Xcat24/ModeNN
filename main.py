@@ -18,6 +18,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
+# cf.read('config/mnist.conf')
 cf.read('example.conf')
 #Dataset Select
 dataset = cf.get('dataset', 'dataset')
@@ -29,7 +30,7 @@ saved_name = cf.get('model', 'saved_name')
 
 #parameter setting
 resize=(cf.getint('para', 'resize_h'), cf.getint('para', 'resize_w'))
-input_size = cf.getint('para', 'input_size')
+input_size = tuple([cf.getint('input_size', option) for option in cf['input_size']])
 val_split = cf.getfloat('para', 'val_split')
 order = cf.getint('para', 'order')
 num_classes = cf.getint('para', 'num_classes')
@@ -80,11 +81,11 @@ test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
 # Fully connected neural network with one hidden layer
 
 if model_name == 'ModeNN':
-    model = MyModel.ModeNN(input_size, order, num_classes).to(device)
+    model = MyModel.ModeNN(input_size[-1], order, num_classes).to(device)
 if model_name == 'MyCNN':
     model = MyModel.MyConv2D(in_channel=1, out_channel=32, layer_num=2, kernel_size=3, num_classes=num_classes,
-                             norm=True, dropout=0.25)
-summary(model, input_size=(input_size,))
+                             padding=1, norm=True, dropout=0.25).to(device)
+summary(model, input_size=input_size[1:])
 
 # Loss and optimizer
 criterion = nn.CrossEntropyLoss()
@@ -97,10 +98,10 @@ for epoch in range(num_epochs):
     for i, sample_batch in enumerate(train_loader):
         # Move tensors to the configured device
         if dataset == 'MNIST':
-            images = sample_batch[0].reshape(-1, input_size).to(device)
+            images = sample_batch[0].reshape(input_size).to(device)
             labels = sample_batch[1].to(device)
         else:
-            images = sample_batch['image'].reshape(-1, input_size).to(device)
+            images = sample_batch['image'].reshape(input_size).to(device)
             labels = sample_batch['labels'].to(device)
 
         # Forward pass
@@ -124,10 +125,10 @@ with torch.no_grad():
     total = 0
     for sample_batch in test_loader:
         if dataset == 'MNIST':
-            images = sample_batch[0].reshape(-1, input_size).to(device)
+            images = sample_batch[0].reshape(input_size).to(device)
             labels = sample_batch[1].to(device)
         else:
-            images = sample_batch['image'].reshape(-1, input_size).to(device)
+            images = sample_batch['image'].reshape(input_size).to(device)
             labels = sample_batch['labels'].to(device)
 
         outputs = model(images)
