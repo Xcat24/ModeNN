@@ -1,5 +1,7 @@
 import math
 import time
+import os
+import configparser
 import torch
 import torch.nn as nn
 import torchvision
@@ -14,35 +16,32 @@ torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.enabled = True
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-#================================== Human Setting ======================================
-#TODO add config file read function and add the conf file to gitignore
+#================================== Read Setting ======================================
+cf = configparser.ConfigParser()
+cf.read('example.conf')
 #Dataset Select
-dataset = 'ORL'
-data_dir = '/disk/Dataset/ORL'
-val_split = 0.5
+dataset = cf.get('dataset', 'dataset')
+data_dir = cf.get('dataset', 'data_dir')
 
-#TODO Model Select
-# model_name = 'ModeNN'
-model_name = 'MyCNN'
+#model
+model_name = cf.get('model', 'model_name')
+saved_name = cf.get('model', 'saved_name')
 
-# Hyper-parameters
-# resize=(60, 50)
-# input_size = 60*50
-resize=(112, 92)
-input_size = 112*92
-# input_size = 784
-order = 2
-num_classes = 40
-num_epochs = 50
-batch_size = 2
-learning_rate = 0.001
-weight_decay = 0.001
+#parameter setting
+resize=(cf.getint('para', 'resize_h'), cf.getint('para', 'resize_w'))
+input_size = cf.getint('para', 'input_size')
+val_split = cf.getfloat('para', 'val_split')
+order = cf.getint('para', 'order')
+num_classes = cf.getint('para', 'num_classes')
+num_epochs = cf.getint('para', 'num_epochs')
+batch_size = cf.getint('para', 'batch_size')
+learning_rate = cf.getfloat('para', 'learning_rate')
+weight_decay = cf.getfloat('para', 'weight_decay')
 
 #others
-output_per = 5
-saved_name = dataset + model_name + 'resize60-50_softmax' + 'val3'
-log_file_name = 'ORL_experiment.txt'
-#================================= Human Setting End ===================================
+output_per = cf.getint('other', 'output_per')
+log_file_name = cf.get('other', 'log_file_name')
+#================================= Read Setting End ===================================
 
 #Dataset setting
 if dataset == 'MNIST':
