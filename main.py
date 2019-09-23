@@ -2,6 +2,7 @@ import math
 import time
 import os
 import configparser
+import numpy as np
 import torch
 import torch.nn as nn
 import torchvision
@@ -42,6 +43,7 @@ weight_decay = cf.getfloat('para', 'weight_decay')
 #others
 output_per = cf.getint('other', 'output_per')
 log_file_name = cf.get('other', 'log_file_name')
+loss_limit = cf.getfloat('other','loss_limit')
 #================================= Read Setting End ===================================
 
 #Dataset setting
@@ -78,8 +80,7 @@ test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
 
 
 
-# Fully connected neural network with one hidden layer
-
+#Select model to use
 if model_name == 'ModeNN':
     model = MyModel.ModeNN(input_size[-1], order, num_classes).to(device)
 if model_name == 'MyCNN':
@@ -89,10 +90,12 @@ summary(model, input_size=input_size[1:])
 
 # Loss and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+optimizer = torch.optim.Adadelta(model.parameters())
 
 # Train the model
 total_step = len(train_loader)
+loss_history = np.zeros(10)
 for epoch in range(num_epochs):
     t0 = time.time()
     for i, sample_batch in enumerate(train_loader):
@@ -107,7 +110,7 @@ for epoch in range(num_epochs):
         # Forward pass
         outputs = model(images)
         loss = criterion(outputs, labels)
-
+        
         # Backward and optimize
         optimizer.zero_grad()
         loss.backward()
@@ -117,6 +120,11 @@ for epoch in range(num_epochs):
             print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}, time: {:.2f}seconds'
                    .format(epoch+1, num_epochs, i+1, total_step, loss.item(), time.time()-t0))
             t0 = time.time()
+    
+    #if Loss does not change anymore, stop training
+    loss_history[epoch%10] = loss.item()
+    if epoch >= 10 and np.std(loss_history)<loss_limit:
+        break
 
 # Test the model
 # In test phase, we don't need to compute gradients (for memory efficiency)
