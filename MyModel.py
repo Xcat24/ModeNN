@@ -16,7 +16,8 @@ class ModeNN(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
-        out = self.de(x)
+        out = torch.flatten(x, 1)
+        out = self.de(out)
         out = self.tanh(out)
         out = self.fc(out)
         # out = self.softmax(out)
@@ -43,7 +44,7 @@ class MyConv2D(nn.Module):
               L_{out} = \left\lfloor\frac{L_{in} + 2 \times \text{padding} - \text{dilation}
                         \times (\text{kernel\_size} - 1) - 1}{\text{stride}} + 1\right\rfloor
     """
-    def __init__(self, in_channel, out_channel, layer_num, kernel_size, num_classes, stride=1, padding=0, 
+    def __init__(self, input_size, in_channel, out_channel, layer_num, dense_node, kernel_size, num_classes, stride=1, padding=0, 
                      pooling='Max', pool_shape=(2,2), norm=False, dropout=None):
         super(MyConv2D, self).__init__()
         self.layer_num = layer_num
@@ -56,8 +57,8 @@ class MyConv2D(nn.Module):
         self.avgpool = nn.AvgPool2d(kernel_size=pool_shape)
         self.norm = nn.BatchNorm2d(out_channel)
         self.dropout = nn.Dropout2d(dropout)
-        self.fc1 = nn.Linear(20608,128)
-        self.fc2 = nn.Linear(128, num_classes)
+        self.fc1 = nn.Linear((input_size[0]//(pool_shape[0]**layer_num))*(input_size[1]//(pool_shape[1]**layer_num))*out_channel, dense_node)
+        self.fc2 = nn.Linear(dense_node, num_classes)
         self.softmax = nn.Softmax(dim=1)
         self.relu = nn.ReLU()
 
