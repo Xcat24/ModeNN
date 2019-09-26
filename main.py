@@ -21,7 +21,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
 # cf.read('config/mnist.conf')
-cf.read('example.conf')
+cf.read('./config/orl.conf')
 #Dataset Select
 dataset = cf.get('dataset', 'dataset')
 data_dir = cf.get('dataset', 'data_dir')
@@ -155,7 +155,7 @@ for epoch in range(num_epochs):
     train_loss = train_model(model, device, train_loader, optimizer, epoch, num_epochs)
     val_loss = test_model(model, device,test_loader)
 
-    early_stopping(val_loss, model)
+    early_stopping(train_loss, model)
     if early_stopping.early_stop:
         print('Early stopping!')
         break
