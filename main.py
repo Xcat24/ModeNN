@@ -94,7 +94,7 @@ def test_model(model, device, test_loader):
             _, predicted = torch.max(outputs.data, 1)
             correct += (predicted == labels).sum().item()
         val_loss /= len(test_loader)
-        print('\nVal: Avg loss:{:.4f}, Acurracy: {}/{} ({} %)'.format(val_loss, correct, len(test_loader.dataset), 100 * correct / len(test_loader.dataset)))
+        print('Val: Avg loss:{:.4f}, Acurracy: {}/{} ({} %)\n'.format(val_loss, correct, len(test_loader.dataset), 100 * correct / len(test_loader.dataset)))
     return val_loss
 
 
@@ -157,7 +157,9 @@ for epoch in range(num_epochs):
 
     early_stopping(train_loss, model)
     if early_stopping.early_stop:
+        print('++++++++++++++++++++++++++++++')
         print('Early stopping!')
+        print('++++++++++++++++++++++++++++++\n')
         break
     
 
