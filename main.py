@@ -95,7 +95,6 @@ optimizer = torch.optim.Adadelta(model.parameters())
 
 # Train the model
 total_step = len(train_loader)
-loss_history = np.zeros(10)
 for epoch in range(num_epochs):
     t0 = time.time()
     for i, sample_batch in enumerate(train_loader):
@@ -121,10 +120,6 @@ for epoch in range(num_epochs):
                    .format(epoch+1, num_epochs, i+1, total_step, loss.item(), time.time()-t0))
             t0 = time.time()
     
-    #if Loss does not change anymore, stop training
-    loss_history[epoch%10] = loss.item()
-    if epoch >= 10 and np.std(loss_history)<loss_limit:
-        break
 
 # Test the model
 # In test phase, we don't need to compute gradients (for memory efficiency)
