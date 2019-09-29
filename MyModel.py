@@ -1,7 +1,13 @@
 import math
 import torch
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.tensorboard import SummaryWriter
 from torch import nn
+import pytorch_lightning as pl
 from layer import DescartesExtension, MaskDE, LocalDE
+from torch.utils.data import Dataset, DataLoader
+from MyPreprocess import ORLdataset
 
 class ModeNN(nn.Module):
     def __init__(self, input_dim, order, num_classes):
@@ -23,7 +29,7 @@ class ModeNN(nn.Module):
         # out = self.softmax(out)
         return out
 
-class MyConv2D(nn.Module):
+class MyConv2D(pl.LightningModule):
     r"""build a multi layer 2D CNN by repeating the same basic 2D CNN layer several times
     Args:
         in_channel (int): Number of channels in the input image
@@ -44,13 +50,20 @@ class MyConv2D(nn.Module):
               L_{out} = \left\lfloor\frac{L_{in} + 2 \times \text{padding} - \text{dilation}
                         \times (\text{kernel\_size} - 1) - 1}{\text{stride}} + 1\right\rfloor
     """
-    def __init__(self, input_size, in_channel, out_channel, layer_num, dense_node, kernel_size, num_classes, stride=1, padding=0, 
-                     pooling='Max', pool_shape=(2,2), norm=False, dropout=None):
+    def __init__(self, device, input_size, in_channel, out_channel, layer_num, dense_node, kernel_size, num_classes,
+                     stride=1, padding=0, pooling='Max', pool_shape=(2,2), norm=False, dropout=None, learning_rate=0.001,
+                     weight_decay=0.001, loss=nn.CrossEntropyLoss(),
+                     dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
         super(MyConv2D, self).__init__()
         self.layer_num = layer_num
         self.pooling = pooling
         self.norm = norm
         self.dropout = dropout
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.dataset = dataset
+        self.loss = loss
+        self.device = device
         self.initconv = nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
         self.conv = nn.Conv2d(out_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
         self.maxpool = nn.MaxPool2d(kernel_size=pool_shape)
@@ -94,3 +107,74 @@ class MyConv2D(nn.Module):
         out = self.softmax(out)
 
         return out
+
+    def training_step(self, batch, batch_nb):
+        x, y = batch
+        x = x.to(self.device)
+        y = y.to(self.device)
+        out = self.forward(x)
+        loss = self.loss(out, y)
+        return {
+            'loss': loss
+        }
+
+    def validation_step(self, batch, batch_nb):
+        x, y = batch
+        x = x.to(self.device)
+        y = y.to(self.device)
+        out = self.forward(x)
+        loss = self.loss(out, y)
+
+        # calculate acc
+        labels_hat = torch.argmax(out, dim=1)
+        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
+
+        # return whatever you need for the collation function validation_end
+        output = {
+            'val_loss': loss,
+            'val_acc': torch.tensor(val_acc), # everything must be a tensor
+        }
+
+        return output
+
+    def validation_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        return {'avg_val_loss': avg_loss}
+
+    def configure_optimizers(self):
+        return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
+
+    @pl.data_loader
+    def train_dataloader(self):
+        if self.dataset['name'] == 'MNIST':
+        # MNIST dataset
+            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
+                                                    train=True,
+                                                    transform=self.dataset['transform'],
+                                                    download=True)
+        elif self.dataset['name'] == 'ORL':
+            train_dataset = ORLdataset(train=True,
+                                        root_dir=self.dataset['dir'],
+                                        transform=self.dataset['transform'],
+                                        val_split=self.dataset['val_split'])
+
+        # Data loader
+        return torch.utils.data.DataLoader(dataset=train_dataset,
+                                                batch_size=self.dataset['batch_size'],
+                                                shuffle=True)
+
+    @pl.data_loader
+    def val_dataloader(self):
+        if self.dataset['name'] == 'MNIST':
+            # MNIST dataset
+            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
+                                                    train=False,
+                                                    transform=self.dataset['transform'])
+        elif self.dataset['name'] == 'ORL':
+            test_dataset = ORLdataset(train=False,
+                                        root_dir=self.dataset['dir'],
+                                        transform=self.dataset['transform'],
+                                        val_split=self.dataset['val_split'])
+        return torch.utils.data.DataLoader(dataset=test_dataset,
+                                                batch_size=self.dataset['batch_size'],
+                                                shuffle=False)

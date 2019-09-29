@@ -7,10 +7,12 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
+from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 import MyModel
 from MyPreprocess import ORLdataset
-from MyUtils import EarlyStopping
+from myutils.callback import EarlyStopping
+from pytorch_lightning import Trainer
 
 
 # Device configuration
@@ -23,7 +25,7 @@ cf = configparser.ConfigParser()
 # cf.read('config/mnist.conf')
 cf.read('./config/orl.conf')
 #Dataset Select
-dataset = cf.get('dataset', 'dataset')
+dataset_name = cf.get('dataset', 'dataset')
 data_dir = cf.get('dataset', 'data_dir')
 
 #model
@@ -45,8 +47,28 @@ weight_decay = cf.getfloat('para', 'weight_decay')
 #others
 output_per = cf.getint('other', 'output_per')
 log_file_name = cf.get('other', 'log_file_name')
+tb_dir = cf.get('other', 'tb_dir')
 patience = cf.getint('other', 'patience')
 #================================= Read Setting End ===================================
+
+
+#Dataset setting
+if dataset_name == 'MNIST':
+    # MNIST dataset
+    transform = transforms.ToTensor()
+
+elif dataset_name == 'ORL':
+    transform = transforms.Compose([transforms.Resize(resize), transforms.ToTensor()])
+
+dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_size':batch_size, 'transform':transform}
+
+model = MyModel.MyConv2D(device=device, input_size=input_size[2:], in_channel=1, out_channel=32, layer_num=2, dense_node=dense_node, kernel_size=3, num_classes=num_classes,
+                             padding=1, norm=True, dropout=0.25, dataset=dataset).to(device)
+trainer = Trainer()
+trainer.fit(model)
+
+
+
 
 def train_model(model, device, train_loader, optimizer, epoch, total_epoch):
     model.train()
@@ -94,51 +116,20 @@ def test_model(model, device, test_loader):
             _, predicted = torch.max(outputs.data, 1)
             correct += (predicted == labels).sum().item()
         val_loss /= len(test_loader)
-        print('Val: Avg loss:{:.4f}, Acurracy: {}/{} ({} %)\n'.format(val_loss, correct, len(test_loader.dataset), 100 * correct / len(test_loader.dataset)))
-    return val_loss
+        acc = 100 * correct / len(test_loader.dataset)
+        print('Val: Avg loss:{:.4f}, Acurracy: {}/{} ({} %)\n'.format(val_loss, correct, len(test_loader.dataset), acc))
+    return val_loss, acc
+# Add tensorboard summary
+writer = SummaryWriter('/disk/Log/torch/'+ tb_dir)
 
-
-#Dataset setting
-if dataset == 'MNIST':
-    # MNIST dataset
-    train_dataset = torchvision.datasets.MNIST(root=data_dir,
-                                            train=True,
-                                            transform=transforms.ToTensor(),
-                                            download=True)
-
-    test_dataset = torchvision.datasets.MNIST(root=data_dir,
-                                            train=False,
-                                            transform=transforms.ToTensor())
-elif dataset == 'ORL':
-    train_dataset = ORLdataset(train=True,
-                                root_dir=data_dir,
-                                transform=transforms.Compose([transforms.Resize(resize),
-                                                            transforms.ToTensor()]),
-                                val_split=val_split)
-    test_dataset = ORLdataset(train=False,
-                                root_dir=data_dir,
-                                transform=transforms.Compose([transforms.Resize(resize),
-                                                            transforms.ToTensor()]),
-                                val_split=val_split)
-
-# Data loader
-train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                           batch_size=batch_size,
-                                           shuffle=True)
-
-test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
-                                          batch_size=batch_size,
-                                          shuffle=False)
-
-
-
-#Select model to use
+# Select model to use
 if model_name == 'ModeNN':
     model = MyModel.ModeNN(input_size[-1]*input_size[-2], order, num_classes).to(device)
 if model_name == 'MyCNN':
     model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=1, out_channel=32, layer_num=2, dense_node=dense_node, kernel_size=3, num_classes=num_classes,
                              padding=1, norm=True, dropout=0.25).to(device)
-summary(model, input_size=input_size[1:])
+
+
 
 # Loss and optimizer
 criterion = nn.CrossEntropyLoss()
@@ -153,7 +144,11 @@ early_stopping = EarlyStopping(patience=patience, verbose=True)
 
 for epoch in range(num_epochs):
     train_loss = train_model(model, device, train_loader, optimizer, epoch, num_epochs)
-    val_loss = test_model(model, device,test_loader)
+    val_loss, acc = test_model(model, device,test_loader)
+
+    writer.add_scalar('train loss', train_loss, epoch+1)
+    writer.add_scalar('val loss', val_loss, epoch+1)
+    writer.add_scalar('val acc', acc, epoch+1)
 
     early_stopping(train_loss, model)
     if early_stopping.early_stop:

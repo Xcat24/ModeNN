@@ -43,7 +43,7 @@ class ORLdataset(Dataset):
             image = self.transform(image)
 
         labels = img_dir
-        sample = {'image':image, 'labels':labels}
+        sample = image, labels
 
         return sample
 
