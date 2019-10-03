@@ -76,7 +76,7 @@ model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=in_channel, out_c
 summary(model, input_size=input_size[1:], device='cpu')
 
 early_stop_callback = EarlyStopping(
-    monitor='loss',
+    monitor='val_acc',
     min_delta=0.00,
     patience=patience,
     verbose=True,

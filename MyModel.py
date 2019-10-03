@@ -65,10 +65,14 @@ class MyConv2D(pl.LightningModule):
         self.loss = loss
         self.initconv = nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
         self.conv = nn.Conv2d(out_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
-        self.maxpool = nn.MaxPool2d(kernel_size=pool_shape)
-        self.avgpool = nn.AvgPool2d(kernel_size=pool_shape)
-        self.norm = nn.BatchNorm2d(out_channel)
-        self.dropout = nn.Dropout2d(dropout)
+        if self.pooling == 'Max':
+            self.maxpool = nn.MaxPool2d(kernel_size=pool_shape)
+        if self.pooling == 'Avg':
+            self.avgpool = nn.AvgPool2d(kernel_size=pool_shape)
+        if self.norm:
+            self.norm_layer = nn.BatchNorm2d(out_channel)
+        if self.dropout:
+            self.dropout_layer = nn.Dropout2d(dropout)
         self.fc1 = nn.Linear((input_size[0]//(pool_shape[0]**layer_num))*(input_size[1]//(pool_shape[1]**layer_num))*out_channel, dense_node)
         self.fc2 = nn.Linear(dense_node, num_classes)
         self.softmax = nn.Softmax(dim=1)
@@ -77,7 +81,7 @@ class MyConv2D(pl.LightningModule):
     def forward(self, x):
         out = self.initconv(x)
         if self.norm :
-            out = self.norm(out)
+            out = self.norm_layer(out)
         out = self.relu(out)
         if self.pooling:
             if self.pooling == 'Max':
@@ -88,7 +92,7 @@ class MyConv2D(pl.LightningModule):
         for _ in range(self.layer_num - 1):
             out = self.conv(out)
             if self.norm :
-                out = self.norm(out)
+                out = self.norm_layer(out)
             out = self.relu(out)
             if self.pooling:
                 if self.pooling == 'Max':
@@ -97,7 +101,7 @@ class MyConv2D(pl.LightningModule):
                     out = self.avgpool(out)
 
         if self.dropout:
-            out = self.dropout(out)
+            out = self.dropout_layer(out)
 
         out = torch.flatten(out, 1)
         out = self.fc1(out)
