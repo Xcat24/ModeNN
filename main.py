@@ -102,6 +102,7 @@ trainer = Trainer(
 
 
 trainer.fit(model)
+trainer.test()
 
 
     

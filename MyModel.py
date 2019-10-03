@@ -141,6 +141,29 @@ class MyConv2D(pl.LightningModule):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         return {'avg_val_loss': avg_loss}
 
+    def test_step(self, batch, batch_nb):
+        x, y = batch
+        x = x.to(self.device)
+        y = y.to(self.device)
+        out = self.forward(x)
+        loss = self.loss(out, y)
+
+        # calculate acc
+        labels_hat = torch.argmax(out, dim=1)
+        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
+
+        # return whatever you need for the collation function validation_end
+        output = {
+            'test_loss': loss,
+            'test_acc': torch.tensor(test_acc), # everything must be a tensor
+        }
+
+        return output
+
+    def test_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        return {'avg_test_loss': avg_loss}
+
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
@@ -165,6 +188,22 @@ class MyConv2D(pl.LightningModule):
 
     @pl.data_loader
     def val_dataloader(self):
+        if self.dataset['name'] == 'MNIST':
+            # MNIST dataset
+            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
+                                                    train=False,
+                                                    transform=self.dataset['transform'])
+        elif self.dataset['name'] == 'ORL':
+            val_dataset = ORLdataset(train=False,
+                                        root_dir=self.dataset['dir'],
+                                        transform=self.dataset['transform'],
+                                        val_split=self.dataset['val_split'])
+        return torch.utils.data.DataLoader(dataset=val_dataset,
+                                                batch_size=self.dataset['batch_size'],
+                                                shuffle=False)
+
+    @pl.data_loader
+    def test_dataloader(self):
         if self.dataset['name'] == 'MNIST':
             # MNIST dataset
             test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
