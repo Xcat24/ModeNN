@@ -72,7 +72,7 @@ class MyConv2D(pl.LightningModule):
         if self.norm:
             self.norm_layer = nn.BatchNorm2d(out_channel)
         if self.dropout:
-            self.dropout_layer = nn.Dropout2d(dropout)
+            self.dropout_layer = nn.Dropout(dropout)
         self.fc1 = nn.Linear((input_size[0]//(pool_shape[0]**layer_num))*(input_size[1]//(pool_shape[1]**layer_num))*out_channel, dense_node)
         self.fc2 = nn.Linear(dense_node, num_classes)
         self.softmax = nn.Softmax(dim=1)
@@ -100,10 +100,10 @@ class MyConv2D(pl.LightningModule):
                 elif self.pooling == 'Avg':
                     out = self.avgpool(out)
 
+        
+        out = torch.flatten(out, 1)
         if self.dropout:
             out = self.dropout_layer(out)
-
-        out = torch.flatten(out, 1)
         out = self.fc1(out)
         out = self.relu(out)
         out = self.fc2(out)
