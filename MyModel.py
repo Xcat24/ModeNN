@@ -50,7 +50,7 @@ class MyConv2D(pl.LightningModule):
               L_{out} = \left\lfloor\frac{L_{in} + 2 \times \text{padding} - \text{dilation}
                         \times (\text{kernel\_size} - 1) - 1}{\text{stride}} + 1\right\rfloor
     """
-    def __init__(self, device, input_size, in_channel, out_channel, layer_num, dense_node, kernel_size, num_classes,
+    def __init__(self, input_size, in_channel, out_channel, layer_num, dense_node, kernel_size, num_classes,
                      stride=1, padding=0, pooling='Max', pool_shape=(2,2), norm=False, dropout=None, learning_rate=0.001,
                      weight_decay=0.001, loss=nn.CrossEntropyLoss(),
                      dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
@@ -63,7 +63,6 @@ class MyConv2D(pl.LightningModule):
         self.weight_decay = weight_decay
         self.dataset = dataset
         self.loss = loss
-        self.device = device
         self.initconv = nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
         self.conv = nn.Conv2d(out_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
         self.maxpool = nn.MaxPool2d(kernel_size=pool_shape)
@@ -110,8 +109,6 @@ class MyConv2D(pl.LightningModule):
 
     def training_step(self, batch, batch_nb):
         x, y = batch
-        x = x.to(self.device)
-        y = y.to(self.device)
         out = self.forward(x)
         loss = self.loss(out, y)
         return {
@@ -120,8 +117,6 @@ class MyConv2D(pl.LightningModule):
 
     def validation_step(self, batch, batch_nb):
         x, y = batch
-        x = x.to(self.device)
-        y = y.to(self.device)
         out = self.forward(x)
         loss = self.loss(out, y)
 
@@ -143,8 +138,6 @@ class MyConv2D(pl.LightningModule):
 
     def test_step(self, batch, batch_nb):
         x, y = batch
-        x = x.to(self.device)
-        y = y.to(self.device)
         out = self.forward(x)
         loss = self.loss(out, y)
 

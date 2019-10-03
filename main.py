@@ -19,7 +19,6 @@ from pytorch_lightning.logging import TestTubeLogger
 # Device configuration
 torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.enabled = True
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
@@ -50,6 +49,8 @@ output_per = cf.getint('other', 'output_per')
 log_file_name = cf.get('other', 'log_file_name')
 tb_dir = cf.get('other', 'tb_dir')
 patience = cf.getint('other', 'patience')
+log_gpu = cf.getboolean('other', 'log_gpu')
+gpus = cf.getint('other', 'gpus')
 #================================= Read Setting End ===================================
 
 
@@ -63,13 +64,13 @@ elif dataset_name == 'ORL':
 
 dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_size':batch_size, 'transform':transform}
 
-model = MyModel.MyConv2D(device=device, input_size=input_size[2:], in_channel=1, out_channel=32, layer_num=2, dense_node=dense_node, kernel_size=3, num_classes=num_classes,
-                             padding=1, norm=True, dropout=0.25, dataset=dataset).to(device)
+model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=1, out_channel=32, layer_num=2, dense_node=dense_node, kernel_size=3, num_classes=num_classes,
+                             padding=1, norm=True, dropout=0.25, dataset=dataset)
 
 early_stop_callback = EarlyStopping(
     monitor='loss',
     min_delta=0.00,
-    patience=30,
+    patience=patience,
     verbose=True,
     mode='auto'
 )
@@ -92,7 +93,8 @@ tt_logger = TestTubeLogger(
     
 trainer = Trainer(
     min_nb_epochs=1,
-    max_nb_epochs=1000,
+    max_nb_epochs=num_epochs,
+    log_gpu_memory=log_gpu,
     fast_dev_run=True, #activate callbacks, everything but only with 1 training and 1 validation batch
     gradient_clip_val=0,  #this will clip the gradient norm computed over all model parameters together
     track_grad_norm=1,  #Looking at grad norms
