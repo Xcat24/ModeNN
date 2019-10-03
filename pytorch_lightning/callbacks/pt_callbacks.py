@@ -119,7 +119,7 @@ class EarlyStopping(Callback):
         self.best = np.Inf if self.monitor_op == np.less else -np.Inf
 
     def on_epoch_end(self, epoch, logs=None):
-        current = logs.get(self.monitor)
+        current = float(logs.get(self.monitor))
         stop_training = False
         if current is None:
             print('Early stopping conditioned on metric `%s` '
@@ -230,7 +230,7 @@ class ModelCheckpoint(Callback):
             self.epochs_since_last_save = 0
             filepath = '{}/{}_ckpt_epoch_{}.ckpt'.format(self.filepath, self.prefix, epoch + 1)
             if self.save_best_only:
-                current = logs.get(self.monitor)
+                current = float(logs.get(self.monitor))
                 if current is None:
                     print('Can save best model only with %s available,'
                           ' skipping.' % (self.monitor), RuntimeWarning)

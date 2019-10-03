@@ -11,8 +11,9 @@ from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 import MyModel
 from MyPreprocess import ORLdataset
-from myutils.callback import EarlyStopping
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning.logging import TestTubeLogger
 
 
 # Device configuration
@@ -22,8 +23,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
-# cf.read('config/mnist.conf')
-cf.read('./config/orl.conf')
+cf.read('config/mnist.conf')
+# cf.read('./config/orl.conf')
 #Dataset Select
 dataset_name = cf.get('dataset', 'dataset')
 data_dir = cf.get('dataset', 'data_dir')
@@ -64,98 +65,45 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 
 model = MyModel.MyConv2D(device=device, input_size=input_size[2:], in_channel=1, out_channel=32, layer_num=2, dense_node=dense_node, kernel_size=3, num_classes=num_classes,
                              padding=1, norm=True, dropout=0.25, dataset=dataset).to(device)
-trainer = Trainer()
+
+early_stop_callback = EarlyStopping(
+    monitor='loss',
+    min_delta=0.00,
+    patience=30,
+    verbose=True,
+    mode='auto'
+)
+
+# exp = Experiment(
+#     name='test_tube_exp',
+#     debug=True,
+#     save_dir=log_dir,
+#     version=0,
+#     autosave=False,
+#     description='test demo'
+# )
+
+tt_logger = TestTubeLogger(
+    save_dir=log_file_name,
+    name="default",
+    debug=True,
+    create_git_tag=False
+)
+    
+trainer = Trainer(
+    min_nb_epochs=1,
+    max_nb_epochs=1000,
+    fast_dev_run=True, #activate callbacks, everything but only with 1 training and 1 validation batch
+    gradient_clip_val=0,  #this will clip the gradient norm computed over all model parameters together
+    track_grad_norm=1,  #Looking at grad norms
+    print_nan_grads=True,
+    logger=tt_logger,
+    early_stop_callback=early_stop_callback)
+
+
 trainer.fit(model)
 
 
-
-
-def train_model(model, device, train_loader, optimizer, epoch, total_epoch):
-    model.train()
-    train_loss = 0
-    t0 = time.time()
-    for i, sample_batch in enumerate(train_loader):
-        # Move tensors to the configured device
-        if dataset == 'MNIST':
-            images = sample_batch[0].reshape(input_size).to(device)
-            labels = sample_batch[1].to(device)
-        else:
-            images = sample_batch['image'].reshape(input_size).to(device)
-            labels = sample_batch['labels'].to(device)
-
-        # Forward pass
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        train_loss += loss.item()
-        
-        # Backward and optimize
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        if (i % output_per) == 0:
-            print ('Train Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}, time: {:.2f}seconds'.format(epoch+1, total_epoch, i, len(train_loader), loss.item(), time.time()-t0))
-    return train_loss/len(train_loader)
-
-def test_model(model, device, test_loader):
-    model.eval()
-    val_loss = 0
-    correct = 0
-    with torch.no_grad():
-        for sample_batch in test_loader:
-            if dataset == 'MNIST':
-                images = sample_batch[0].reshape(input_size).to(device)
-                labels = sample_batch[1].to(device)
-            else:
-                images = sample_batch['image'].reshape(input_size).to(device)
-                labels = sample_batch['labels'].to(device)
-
-            outputs = model(images)
-            val_loss += criterion(outputs, labels).item()
-            # predicted = outputs.argmax(dim=1, keepdim=True)
-            # correct += predicted.eq(labels.view_as(predicted)).sum().item()
-            _, predicted = torch.max(outputs.data, 1)
-            correct += (predicted == labels).sum().item()
-        val_loss /= len(test_loader)
-        acc = 100 * correct / len(test_loader.dataset)
-        print('Val: Avg loss:{:.4f}, Acurracy: {}/{} ({} %)\n'.format(val_loss, correct, len(test_loader.dataset), acc))
-    return val_loss, acc
-# Add tensorboard summary
-writer = SummaryWriter('/disk/Log/torch/'+ tb_dir)
-
-# Select model to use
-if model_name == 'ModeNN':
-    model = MyModel.ModeNN(input_size[-1]*input_size[-2], order, num_classes).to(device)
-if model_name == 'MyCNN':
-    model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=1, out_channel=32, layer_num=2, dense_node=dense_node, kernel_size=3, num_classes=num_classes,
-                             padding=1, norm=True, dropout=0.25).to(device)
-
-
-
-# Loss and optimizer
-criterion = nn.CrossEntropyLoss()
-# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-optimizer = torch.optim.Adadelta(model.parameters())
-
-# Train the model
-total_step = len(train_loader)
-#trach loss during the training
-
-early_stopping = EarlyStopping(patience=patience, verbose=True)
-
-for epoch in range(num_epochs):
-    train_loss = train_model(model, device, train_loader, optimizer, epoch, num_epochs)
-    val_loss, acc = test_model(model, device,test_loader)
-
-    writer.add_scalar('train loss', train_loss, epoch+1)
-    writer.add_scalar('val loss', val_loss, epoch+1)
-    writer.add_scalar('val acc', acc, epoch+1)
-
-    early_stopping(train_loss, model)
-    if early_stopping.early_stop:
-        print('++++++++++++++++++++++++++++++')
-        print('Early stopping!')
-        print('++++++++++++++++++++++++++++++\n')
-        break
     
 
 
