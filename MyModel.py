@@ -154,7 +154,7 @@ class MyConv2D(pl.LightningModule):
         return output
 
     def test_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
         return {'avg_test_loss': avg_loss}
 
     def configure_optimizers(self):
