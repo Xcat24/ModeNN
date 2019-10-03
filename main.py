@@ -123,6 +123,7 @@ for epoch in range(num_epochs):
 
 # Test the model
 # In test phase, we don't need to compute gradients (for memory efficiency)
+model.eval()
 with torch.no_grad():
     correct = 0
     total = 0
