@@ -73,6 +73,7 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=in_channel, out_channel=out_channel, layer_num=layer_num,
                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
                          dropout=dropout, dataset=dataset)
+summary(model, input_size=input_size[1:])
 
 early_stop_callback = EarlyStopping(
     monitor='loss',
