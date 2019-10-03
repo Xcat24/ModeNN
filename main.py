@@ -19,8 +19,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
-# cf.read('config/mnist.conf')
-cf.read('example.conf')
+cf.read('config/mnist.conf')
+# cf.read('example.conf')
 #Dataset Select
 dataset = cf.get('dataset', 'dataset')
 data_dir = cf.get('dataset', 'data_dir')
@@ -30,20 +30,20 @@ model_name = cf.get('model', 'model_name')
 saved_name = cf.get('model', 'saved_name')
 
 #parameter setting
-resize=(cf.getint('para', 'resize_h'), cf.getint('para', 'resize_w'))
+resize=(cf.getint('input_size', 'resize_h'), cf.getint('input_size', 'resize_w'))
 input_size = tuple([cf.getint('input_size', option) for option in cf['input_size']])
 val_split = cf.getfloat('para', 'val_split')
 order = cf.getint('para', 'order')
 num_classes = cf.getint('para', 'num_classes')
 num_epochs = cf.getint('para', 'num_epochs')
-batch_size = cf.getint('para', 'batch_size')
+batch_size = cf.getint('input_size', 'batch_size')
 learning_rate = cf.getfloat('para', 'learning_rate')
 weight_decay = cf.getfloat('para', 'weight_decay')
 
 #others
 output_per = cf.getint('other', 'output_per')
 log_file_name = cf.get('other', 'log_file_name')
-loss_limit = cf.getfloat('other','loss_limit')
+
 #================================= Read Setting End ===================================
 
 #Dataset setting
