@@ -465,6 +465,9 @@ class Trainer(TrainerIO):
         for k, v in metrics.items():
             if type(v) is torch.Tensor:
                 v = v.item()
+            # Xcat: add output format
+            if type(v) is not str:
+                v = '{0:.5f}'.format(v)
 
             self.tqdm_metrics[k] = v
 

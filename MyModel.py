@@ -133,8 +133,9 @@ class MyConv2D(pl.LightningModule):
         return output
 
     def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        return {'avg_val_loss': avg_loss}
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
+        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
+        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
 
     def test_step(self, batch, batch_nb):
         x, y = batch
@@ -154,8 +155,9 @@ class MyConv2D(pl.LightningModule):
         return output
 
     def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
-        return {'avg_test_loss': avg_loss}
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
+        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
+        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
 
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
