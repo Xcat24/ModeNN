@@ -37,6 +37,12 @@ resize=(cf.getint('input_size', 'resize_h'), cf.getint('input_size', 'resize_w')
 input_size = tuple([cf.getint('input_size', option) for option in cf['input_size']])
 val_split = cf.getfloat('para', 'val_split')
 order = cf.getint('para', 'order')
+in_channel = cf.getint('para', 'in_channel')
+out_channel = cf.getint('para', 'out_channel')
+layer_num = cf.getint('para', 'layer_num')
+kernel_size = cf.getint('para', 'kernel_size')
+norm = cf.getboolean('para', 'norm')
+dropout = cf.getfloat('para','dropout')
 num_classes = cf.getint('para', 'num_classes')
 num_epochs = cf.getint('para', 'num_epochs')
 batch_size = cf.getint('input_size', 'batch_size')
@@ -64,8 +70,9 @@ elif dataset_name == 'ORL':
 
 dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_size':batch_size, 'transform':transform}
 
-model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=1, out_channel=32, layer_num=2, dense_node=dense_node, kernel_size=3, num_classes=num_classes,
-                             padding=1, norm=True, dropout=0.25, dataset=dataset)
+model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=in_channel, out_channel=out_channel, layer_num=layer_num,
+                         dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
+                         dropout=dropout, dataset=dataset)
 
 early_stop_callback = EarlyStopping(
     monitor='loss',
