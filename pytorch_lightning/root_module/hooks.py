@@ -29,7 +29,8 @@ class ModelHooks(torch.nn.Module):
         pass
 
     def on_training_metrics(self, metrics):
-        pass
+        # print(metrics)
+        return
 
     def on_before_zero_grad(self, optimizer):
         """
@@ -43,11 +44,20 @@ class ModelHooks(torch.nn.Module):
         :param optimizer:
         :return:
         """
-        pass
+        #logger
+        if self.logger:
+            layer_names = list(self._modules)
+            for i in range(len(layer_names)):
+                mod_para = list(self._modules[layer_names[i]].parameters())
+                if mod_para:
+                    for j in range(len(mod_para)):
+                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(mod_para[j].shape)+'_weight-grad', mod_para[j].grad)
+        return
 
     def on_after_backward(self):
         """
         Called after loss.backward() and before optimizers do anything
         :return:
         """
+        
         pass

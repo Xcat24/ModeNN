@@ -147,7 +147,7 @@ class MyConv2D(pl.LightningModule):
                 mod_para = list(self._modules[layer_names[i]].parameters())
                 if mod_para:
                     for j in range(len(mod_para)):
-                        w = torch.tensor(mod_para[j])
+                        w = mod_para[j].clone().detach()
                         self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
 
 
@@ -177,6 +177,20 @@ class MyConv2D(pl.LightningModule):
 
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
+
+    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
+        """
+        Do something instead of the standard optimizer behavior
+        :param epoch_nb:
+        :param batch_nb:
+        :param optimizer:
+        :param optimizer_i:
+        :return:
+        """
+        optimizer.step()
+        self.on_before_zero_grad(optimizer)
+        # clear gradients
+        optimizer.zero_grad()
 
     @pl.data_loader
     def train_dataloader(self):
