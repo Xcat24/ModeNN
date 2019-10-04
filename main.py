@@ -12,7 +12,7 @@ from torchsummary import summary
 import MyModel
 from MyPreprocess import ORLdataset
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.logging import TestTubeLogger
 
 
@@ -22,16 +22,16 @@ torch.backends.cudnn.enabled = True
 
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
-#cf.read('config/mnist.conf')
+cf.read('config/mnist.conf')
 # cf.read('./config/orl.conf')
-cf.read('./config/cifar10.conf')
+# cf.read('./config/cifar10.conf')
 #Dataset Select
 dataset_name = cf.get('dataset', 'dataset')
 data_dir = cf.get('dataset', 'data_dir')
 
 #model
 model_name = cf.get('model', 'model_name')
-saved_name = cf.get('model', 'saved_name')
+saved_path = cf.get('model', 'saved_path')
 
 #parameter setting
 resize=(cf.getint('input_size', 'resize_h'), cf.getint('input_size', 'resize_w'))
@@ -84,14 +84,14 @@ early_stop_callback = EarlyStopping(
     mode='auto'
 )
 
-# exp = Experiment(
-#     name='test_tube_exp',
-#     debug=True,
-#     save_dir=log_dir,
-#     version=0,
-#     autosave=False,
-#     description='test demo'
-# )
+checkpoint_callback = ModelCheckpoint(
+    filepath=saved_path,
+    save_best_only=True,
+    verbose=True,
+    monitor='val_acc',
+    mode='max',
+    prefix=''
+)
 
 tt_logger = TestTubeLogger(
     save_dir=log_file_name,
@@ -109,6 +109,7 @@ trainer = Trainer(
     gradient_clip_val=0,  #this will clip the gradient norm computed over all model parameters together
     track_grad_norm=1,  #Looking at grad norms
     print_nan_grads=True,
+    checkpoint_callback=checkpoint_callback,
     logger=tt_logger,
     early_stop_callback=early_stop_callback)
 
