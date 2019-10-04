@@ -23,7 +23,8 @@ torch.backends.cudnn.enabled = True
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
 #cf.read('config/mnist.conf')
-cf.read('./config/orl.conf')
+# cf.read('./config/orl.conf')
+cf.read('./config/cifar10.conf')
 #Dataset Select
 dataset_name = cf.get('dataset', 'dataset')
 data_dir = cf.get('dataset', 'data_dir')
@@ -37,7 +38,7 @@ resize=(cf.getint('input_size', 'resize_h'), cf.getint('input_size', 'resize_w')
 input_size = tuple([cf.getint('input_size', option) for option in cf['input_size']])
 val_split = cf.getfloat('para', 'val_split')
 order = cf.getint('para', 'order')
-in_channel = cf.getint('para', 'in_channel')
+in_channel = cf.getint('input_size', 'channel')
 out_channel = cf.getint('para', 'out_channel')
 layer_num = cf.getint('para', 'layer_num')
 kernel_size = cf.getint('para', 'kernel_size')
@@ -62,9 +63,9 @@ gpus = cf.getint('other', 'gpus')
 
 #Dataset setting
 if dataset_name == 'MNIST':
-    # MNIST dataset
     transform = transforms.ToTensor()
-
+elif dataset_name == 'CIFAR10':
+    transform = transforms.ToTensor()
 elif dataset_name == 'ORL':
     transform = transforms.Compose([transforms.Resize(resize), transforms.ToTensor()])
 

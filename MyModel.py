@@ -179,6 +179,11 @@ class MyConv2D(pl.LightningModule):
                                         root_dir=self.dataset['dir'],
                                         transform=self.dataset['transform'],
                                         val_split=self.dataset['val_split'])
+        elif self.dataset['name'] == 'CIFAR10':
+            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
+                                                    train=True,
+                                                    transform=self.dataset['transform'],
+                                                    download=True)
 
         # Data loader
         return torch.utils.data.DataLoader(dataset=train_dataset,
@@ -197,6 +202,11 @@ class MyConv2D(pl.LightningModule):
                                         root_dir=self.dataset['dir'],
                                         transform=self.dataset['transform'],
                                         val_split=self.dataset['val_split'])
+        elif self.dataset['name'] == 'CIFAR10':
+            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
+                                                    train=False,
+                                                    transform=self.dataset['transform'])
+
         return torch.utils.data.DataLoader(dataset=val_dataset,
                                                 batch_size=self.dataset['batch_size'],
                                                 shuffle=False)
@@ -213,6 +223,10 @@ class MyConv2D(pl.LightningModule):
                                         root_dir=self.dataset['dir'],
                                         transform=self.dataset['transform'],
                                         val_split=self.dataset['val_split'])
+        elif self.dataset['name'] == 'CIFAR10':
+            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
+                                                    train=False,
+                                                    transform=self.dataset['transform'])
         return torch.utils.data.DataLoader(dataset=test_dataset,
                                                 batch_size=self.dataset['batch_size'],
                                                 shuffle=False)
