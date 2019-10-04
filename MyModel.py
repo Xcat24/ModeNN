@@ -139,6 +139,18 @@ class MyConv2D(pl.LightningModule):
     def validation_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
+       
+        #logger
+        if self.logger:
+            layer_names = list(self._modules)
+            for i in range(len(layer_names)):
+                mod_para = list(self._modules[layer_names[i]].parameters())
+                if mod_para:
+                    for j in range(len(mod_para)):
+                        w = torch.tensor(mod_para[j])
+                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
+
+
         return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
 
     def test_step(self, batch, batch_nb):

@@ -53,11 +53,14 @@ weight_decay = cf.getfloat('para', 'weight_decay')
 
 #others
 output_per = cf.getint('other', 'output_per')
-log_file_name = cf.get('other', 'log_file_name')
+log_dir = cf.get('other', 'log_dir')
 tb_dir = cf.get('other', 'tb_dir')
 patience = cf.getint('other', 'patience')
 log_gpu = cf.getboolean('other', 'log_gpu')
-gpus = cf.getint('other', 'gpus')
+try:
+    gpus = cf.getint('other', 'gpus')
+except ValueError as e:
+    gpus = None
 #================================= Read Setting End ===================================
 
 
@@ -93,12 +96,12 @@ checkpoint_callback = ModelCheckpoint(
     prefix=''
 )
 
-tt_logger = TestTubeLogger(
-    save_dir=log_file_name,
-    name="default",
-    debug=True,
-    create_git_tag=False
-)
+# tb_logger = SummaryWriter(log_dir=log_dir)
+tb_logger = TestTubeLogger(
+    save_dir=log_dir,
+    name="test",
+    debug=False,
+    create_git_tag=False)
     
 trainer = Trainer(
     min_nb_epochs=1,
@@ -110,7 +113,7 @@ trainer = Trainer(
     track_grad_norm=1,  #Looking at grad norms
     print_nan_grads=True,
     checkpoint_callback=checkpoint_callback,
-    logger=tt_logger,
+    logger=tb_logger,
     early_stop_callback=early_stop_callback)
 
 
