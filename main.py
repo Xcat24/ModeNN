@@ -10,7 +10,6 @@ import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 import MyModel
-from MyPreprocess import ORLdataset
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.logging import TestTubeLogger
@@ -22,7 +21,8 @@ torch.backends.cudnn.enabled = True
 
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
-cf.read('config/mnist.conf')
+# cf.read('config/mnist.conf')
+cf.read('config/mnist_bestcnn.conf')
 # cf.read('./config/orl.conf')
 # cf.read('./config/cifar10.conf')
 #Dataset Select
@@ -74,9 +74,11 @@ elif dataset_name == 'ORL':
 
 dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_size':batch_size, 'transform':transform}
 
-model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=in_channel, out_channel=out_channel, layer_num=layer_num,
-                         dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
-                         dropout=dropout, dataset=dataset)
+# model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=in_channel, out_channel=out_channel, layer_num=layer_num,
+#                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
+#                          dropout=dropout, dataset=dataset)
+
+model = MyModel.MNISTConv2D(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, padding=(0,0), dataset=dataset)
 summary(model, input_size=input_size[1:], device='cpu')
 
 early_stop_callback = EarlyStopping(
@@ -99,7 +101,7 @@ checkpoint_callback = ModelCheckpoint(
 # tb_logger = SummaryWriter(log_dir=log_dir)
 tb_logger = TestTubeLogger(
     save_dir=log_dir,
-    name="test",
+    name=tb_dir,
     debug=False,
     create_git_tag=False)
     
