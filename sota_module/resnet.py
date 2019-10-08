@@ -289,6 +289,19 @@ def resnet152(pretrained=False, progress=True, **kwargs):
                    **kwargs)
 
 
+def resnext29_16x64d(pretrained=False, progress=True, **kwargs):
+    r"""ResNeXt-29 16x64d model from
+    `"Aggregated Residual Transformation for Deep Neural Networks" <https://arxiv.org/pdf/1611.05431.pdf>`_
+
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    kwargs['groups'] = 16
+    kwargs['width_per_group'] = 64
+    return _resnet('resnext50_32x4d', Bottleneck, [3, 4, 6, 3],
+                   pretrained, progress, **kwargs)
+
 
 def resnext50_32x4d(pretrained=False, progress=True, **kwargs):
     r"""ResNeXt-50 32x4d model from

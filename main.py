@@ -78,7 +78,11 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 #                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
 #                          dropout=dropout, dataset=dataset)
 
-model = MyModel.MNISTConv2D(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, padding=(0,0), dataset=dataset)
+# model = MyModel.MNISTConv2D(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, padding=(0,0), dataset=dataset)
+
+# model = MyModel.resnext29(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, dataset=dataset)
+
+model = MyModel.resnet18(num_classes=num_classes, dataset=dataset)
 summary(model, input_size=input_size[1:], device='cpu')
 
 early_stop_callback = EarlyStopping(
