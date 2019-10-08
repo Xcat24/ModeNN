@@ -22,9 +22,9 @@ torch.backends.cudnn.enabled = True
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
 # cf.read('config/mnist.conf')
-cf.read('config/mnist_bestcnn.conf')
+# cf.read('config/mnist_bestcnn.conf')
 # cf.read('./config/orl.conf')
-# cf.read('./config/cifar10.conf')
+cf.read('./config/cifar10.conf')
 #Dataset Select
 dataset_name = cf.get('dataset', 'dataset')
 data_dir = cf.get('dataset', 'data_dir')
