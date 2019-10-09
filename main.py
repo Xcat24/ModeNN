@@ -42,7 +42,7 @@ order = cf.getint('para', 'order')
 in_channel = cf.getint('input_size', 'channel')
 out_channel = cf.getint('para', 'out_channel')
 layer_num = cf.getint('para', 'layer_num')
-kernel_size = cf.getint('para', 'kernel_size')
+kernel_size = (cf.getint('para', 'kernel_size'), cf.getint('para', 'kernel_size'))
 norm = cf.getboolean('para', 'norm')
 dropout = cf.getfloat('para','dropout')
 num_classes = cf.getint('para', 'num_classes')
@@ -69,8 +69,8 @@ except ValueError as e:
 if dataset_name == 'MNIST':
     transform = transforms.ToTensor()
 elif dataset_name == 'CIFAR10':
-    # transform = transforms.ToTensor()
-    transform = transforms.Compose([pick_edge(), transforms.ToTensor()])
+    transform = transforms.ToTensor()
+    # transform = transforms.Compose([pick_edge(), transforms.ToTensor()])
 elif dataset_name == 'ORL':
     transform = transforms.Compose([transforms.Resize(resize), transforms.ToTensor()])
 
@@ -80,13 +80,17 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 #                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
 #                          dropout=dropout, dataset=dataset)
 
+model = MyModel.CIFARConv2D(input_size=input_size[2:], in_channel=in_channel, layer_num=layer_num, pooling='Max',
+                         dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
+                         dropout=dropout, dataset=dataset)
+
 # model = MyModel.MNISTConv2D(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, padding=(0,0), dataset=dataset)
 
 # model = MyModel.resnext29(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, dataset=dataset)
 
 # model = MyModel.resnet18(num_classes=num_classes, dataset=dataset)
 
-model = MyModel.ModeNN(input_dim=input_size[-2]*input_size[-1], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset)
+# model = MyModel.ModeNN(input_dim=input_size[-2]*input_size[-1], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset)
 summary(model, input_size=input_size[1:], device='cpu')
 
 early_stop_callback = EarlyStopping(
