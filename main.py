@@ -80,8 +80,12 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 #                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
 #                          dropout=dropout, dataset=dataset)
 
-model = MyModel.CIFARConv2D(input_size=input_size[2:], in_channel=in_channel, layer_num=layer_num, pooling='Max',
-                         dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
+# model = MyModel.CIFARConv2D(input_size=input_size[2:], in_channel=in_channel, layer_num=layer_num, pooling='Max',
+#                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
+#                          dropout=dropout, dataset=dataset)
+
+model = MyModel.CIFARConv_MODENN(input_size=input_size[2:], in_channel=in_channel, layer_num=layer_num, pooling='Max',
+                         dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, order=order, padding=1, norm=norm,
                          dropout=dropout, dataset=dataset)
 
 # model = MyModel.MNISTConv2D(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, padding=(0,0), dataset=dataset)
