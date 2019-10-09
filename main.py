@@ -13,6 +13,7 @@ import MyModel
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.logging import TestTubeLogger
+from myutils.utils import pick_edge
 
 
 # Device configuration
@@ -68,7 +69,8 @@ except ValueError as e:
 if dataset_name == 'MNIST':
     transform = transforms.ToTensor()
 elif dataset_name == 'CIFAR10':
-    transform = transforms.ToTensor()
+    # transform = transforms.ToTensor()
+    transform = transforms.Compose([pick_edge(), transforms.ToTensor()])
 elif dataset_name == 'ORL':
     transform = transforms.Compose([transforms.Resize(resize), transforms.ToTensor()])
 
@@ -82,7 +84,9 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 
 # model = MyModel.resnext29(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, dataset=dataset)
 
-model = MyModel.resnet18(num_classes=num_classes, dataset=dataset)
+# model = MyModel.resnet18(num_classes=num_classes, dataset=dataset)
+
+model = MyModel.ModeNN(input_dim=input_size[-2]*input_size[-1], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset)
 summary(model, input_size=input_size[1:], device='cpu')
 
 early_stop_callback = EarlyStopping(
