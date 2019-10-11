@@ -10,7 +10,7 @@ def compute_cnn_out(input_size, kernel_size, padding=(0,0), dilation=(1,1), stri
     return (h_out, w_out)
 
 class pick_edge(object):
-    """transform: pick the edge of the image, return 0-1 torch tensor"""
+    """transform: detect the edge of the image, return 0-1 torch tensor"""
     def __call__(self, pic):
         #handle PIL Image
         if pic.mode == 'I':

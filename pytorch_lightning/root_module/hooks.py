@@ -61,3 +61,31 @@ class ModelHooks(torch.nn.Module):
         """
         
         pass
+
+    def data_statics(self, tag, data, verbose=False):
+        """
+        compute the statics of the tensor
+        """
+        if not isinstance(data, torch.Tensor):
+            x = torch.tensor(data).to(torch.device('cpu'))
+        else:
+            x = torch.tensor(data).to(torch.device('cpu'))
+        max = x.max().item()
+        min = x.min().item()
+        mean = x.mean().item()
+        std = x.std().item()
+        pos_count = (torch.gt(x, torch.zeros(x.shape, device=x.device))==True).sum().item()
+        neg_count = (torch.lt(x, torch.zeros(x.shape, device=x.device))==True).sum().item()
+        zero_count = (torch.eq(x, torch.zeros(x.shape, device=x.device))==True).sum().item()
+        if verbose == True:
+            print('-------------------------'+ tag +' statics---------------------------')
+            print('data shape of: ', x.shape)
+            print('max:  ', max)
+            print('min:  ', min)
+            print('mean: ', mean)
+            print('std:  ', std)
+            print('number of great than 0: ', pos_count)
+            print('number of less than 0:  ', neg_count)
+            print('number of equal to 0:   ', zero_count)
+
+        return
