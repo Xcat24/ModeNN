@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from torch import nn
 
 
@@ -57,3 +58,22 @@ class MaskDE(nn.Module):
             return out
         else:
             raise ValueError("the dimension of input tensor is expected 1 or 2")
+
+
+class SLConv(nn.Module):
+    def __init__(self, in_channel, stride=1, padding=1):
+        super(SLConv, self).__init__()
+        self.stride = stride
+        self.padding = padding
+        self.in_channel = in_channel
+        self.sobel_weight_h = torch.tensor([[-1., -2. , -1.], [0., 0., 0.], [1., 2. , 1.]], requires_grad=False)
+        self.sobel_weight_w = self.sobel_weight_h.t()
+        self.sobel_weight_h = self.sobel_weight_h.expand(self.in_channel, 3, 3)
+        self.sobel_weight_w = self.sobel_weight_w.expand(self.in_channel, 3, 3)
+        self.laplace_weight = torch.tensor([[0., 1., 0.], [1., -4., 1.],[0. ,1., 0.]], requires_grad=False).expand(self.in_channel, 3, 3)
+        self.kernel = torch.stack([self.sobel_weight_h, self.sobel_weight_w, self.laplace_weight], dim=0)
+                
+    def forward(self, x):
+        out = F.conv2d(x, self.kernel.to(x.device), stride=self.stride, padding=self.padding)
+        return out
+        
