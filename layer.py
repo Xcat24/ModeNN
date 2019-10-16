@@ -76,4 +76,29 @@ class SLConv(nn.Module):
     def forward(self, x):
         out = F.conv2d(x, self.kernel.to(x.device), stride=self.stride, padding=self.padding)
         return out
+
+class Pretrain_5MODE(nn.Module):
+    def __init__(self, num_classes, bins_size=9, bins_num=35):
+        super(Pretrain_5MODE, self).__init__()
+        self.bins_size = bins_size
+        self.bins_num = bins_num
+        self.de2 = DescartesExtension(order=2)
+        self.de3 = DescartesExtension(order=3)
+        self.de4 = DescartesExtension(order=4)
+        self.de5 = DescartesExtension(order=5)
+
+    def forward(self, x):
+        x = torch.flatten(x, 1)
+        temp = []
+        for i in range(self.bins_num):
+            origin = x[:,i*self.bins_size:(i+1)*self.bins_size]
+            de2_out = self.de2(origin)
+            de3_out = self.de3(origin)
+            de4_out = self.de4(origin)
+            de5_out = self.de5(origin)
+            temp.append(torch.cat([origin, de2_out, de3_out, de4_out, de5_out], dim=-1))
+
+        out = torch.cat(temp, dim=-1)
+      
+        return out
         

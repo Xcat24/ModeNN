@@ -13,7 +13,7 @@ import MyModel
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.logging import TestTubeLogger
-from myutils.utils import pick_edge
+from myutils.utils import pick_edge, Pretrain_Select
 
 
 # Device configuration
@@ -22,10 +22,11 @@ torch.backends.cudnn.enabled = True
 
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
-cf.read('config/mnist.conf')
+# cf.read('config/mnist.conf')
 # cf.read('config/mnist_bestcnn.conf')
 # cf.read('./config/orl.conf')
 # cf.read('./config/cifar10.conf')
+cf.read('./config/mnist_pretrain_5modenn.conf')
 #Dataset Select
 dataset_name = cf.get('dataset', 'dataset')
 data_dir = cf.get('dataset', 'data_dir')
@@ -35,22 +36,25 @@ model_name = cf.get('model', 'model_name')
 saved_path = cf.get('model', 'saved_path')
 
 #parameter setting
-resize=(cf.getint('input_size', 'resize_h'), cf.getint('input_size', 'resize_w'))
 input_size = tuple([cf.getint('input_size', option) for option in cf['input_size']])
-val_split = cf.getfloat('para', 'val_split')
-order = cf.getint('para', 'order')
-in_channel = cf.getint('input_size', 'channel')
-out_channel = cf.getint('para', 'out_channel')
-layer_num = cf.getint('para', 'layer_num')
-kernel_size = (cf.getint('para', 'kernel_size'), cf.getint('para', 'kernel_size'))
-norm = cf.getboolean('para', 'norm')
-dropout = cf.getfloat('para','dropout')
 num_classes = cf.getint('para', 'num_classes')
 num_epochs = cf.getint('para', 'num_epochs')
 batch_size = cf.getint('input_size', 'batch_size')
-dense_node = cf.getint('para', 'dense_node')
 learning_rate = cf.getfloat('para', 'learning_rate')
 weight_decay = cf.getfloat('para', 'weight_decay')
+val_split = cf.getfloat('para', 'val_split')
+
+if model_name != 'Pretrain_5MODENN':
+    resize=(cf.getint('input_size', 'resize_h'), cf.getint('input_size', 'resize_w'))
+    order = cf.getint('para', 'order')
+    in_channel = cf.getint('input_size', 'channel')
+    out_channel = cf.getint('para', 'out_channel')
+    layer_num = cf.getint('para', 'layer_num')
+    kernel_size = (cf.getint('para', 'kernel_size'), cf.getint('para', 'kernel_size'))
+    norm = cf.getboolean('para', 'norm')
+    dropout = cf.getfloat('para','dropout')
+    dense_node = cf.getint('para', 'dense_node')
+
 
 #others
 output_per = cf.getint('other', 'output_per')
@@ -67,12 +71,17 @@ except ValueError as e:
 
 #Dataset setting
 if dataset_name == 'MNIST':
-    transform = transforms.ToTensor()
+    if model_name != 'Pretrain_5MODENN':
+        transform = transforms.ToTensor()
+    else:
+        transform = transforms.Compose([transforms.ToTensor(), Pretrain_Select(model_path='/disk/Log/torch/model/NoHiddenBase_MNIST/_ckpt_epoch_69.ckpt')])
 elif dataset_name == 'CIFAR10':
     transform = transforms.ToTensor()
     # transform = transforms.Compose([pick_edge(), transforms.ToTensor()])
 elif dataset_name == 'ORL':
     transform = transforms.Compose([transforms.Resize(resize), transforms.ToTensor()])
+elif dataset_name == 'NUMPY':
+    transform = None
 
 dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_size':batch_size, 'transform':transform}
 
@@ -91,8 +100,19 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 #                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, order=order, padding=1, norm=norm,
 #                          dropout=dropout, dataset=dataset)
 
-model = MyModel.SLCNN_MODENN(input_size=input_size[2:], in_channel=in_channel, stride=1, pooling='Max', pool_shape=(4,4), learning_rate=learning_rate, 
-                         weight_decay=weight_decay, num_classes=num_classes, order=order, padding=1, norm=norm, dropout=dropout, dataset=dataset)
+# model = MyModel.SLCNN(input_size=input_size[2:], in_channel=in_channel, stride=1, pooling='Max', pool_shape=(4,4), learning_rate=learning_rate, 
+#                          weight_decay=weight_decay, num_classes=num_classes, padding=1, norm=norm, dropout=dropout, dataset=dataset)
+
+# model = MyModel.SLCNN_MODENN(input_size=input_size[2:], in_channel=in_channel, stride=1, pooling='Max', pool_shape=(4,4), learning_rate=learning_rate, 
+                        #  weight_decay=weight_decay, num_classes=num_classes, order=order, padding=1, norm=norm, dropout=dropout, dataset=dataset)
+
+# model = MyModel.NoHiddenBase(input_size=input_size[1:], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
+
+# model = MyModel.OneHiddenBase(input_size=input_size[1:], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
+
+model = MyModel.Pretrain_5MODENN(num_classes=num_classes,bins_size=9, bins_num=35,
+                     dropout=None, learning_rate=learning_rate,weight_decay=weight_decay, loss=nn.CrossEntropyLoss(),
+                     dataset=dataset)
 
 # model = MyModel.MNISTConv2D(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, padding=(0,0), dataset=dataset)
 
