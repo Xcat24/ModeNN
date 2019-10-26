@@ -9,15 +9,15 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 
 class NumpyDataset(Dataset):
-    def __init__(self, data_root_dir, train=False):
+    def __init__(self, root_dir, train=False):
         if train:
-            self.data = torch.tensor(np.load(os.path.join(data_root_dir,'train_data.npy')))
-            self.labels = torch.tensor(np.load(os.path.join(data_root_dir, 'train_label.npy')))
+            self.data = torch.tensor(np.load(os.path.join(root_dir,'train_data.npy')))
+            self.labels = torch.tensor(np.load(os.path.join(root_dir, 'train_label.npy')))
         else:
-            self.data = torch.tensor(np.load(os.path.join(data_root_dir,'val_data.npy')))
-            self.labels = torch.tensor(np.load(os.path.join(data_root_dir, 'val_label.npy')))
+            self.data = torch.tensor(np.load(os.path.join(root_dir,'val_data.npy')))
+            self.labels = torch.tensor(np.load(os.path.join(root_dir, 'val_label.npy')))
     
-    def __len__():
+    def __len__(self):
         return len(self.labels)
     
     def __getitem__(self, idx):
