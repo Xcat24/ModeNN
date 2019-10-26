@@ -34,6 +34,7 @@ data_dir = cf.get('dataset', 'data_dir')
 #model
 model_name = cf.get('model', 'model_name')
 saved_path = cf.get('model', 'saved_path')
+pretrain_model = cf.get('model', 'pretrain_model_path')
 
 #parameter setting
 input_size = tuple([cf.getint('input_size', option) for option in cf['input_size']])
@@ -43,6 +44,8 @@ batch_size = cf.getint('input_size', 'batch_size')
 learning_rate = cf.getfloat('para', 'learning_rate')
 weight_decay = cf.getfloat('para', 'weight_decay')
 val_split = cf.getfloat('para', 'val_split')
+norm = cf.getboolean('para', 'norm')
+dropout = cf.getfloat('para','dropout')
 
 if model_name != 'Pretrain_5MODENN':
     resize=(cf.getint('input_size', 'resize_h'), cf.getint('input_size', 'resize_w'))
@@ -51,8 +54,6 @@ if model_name != 'Pretrain_5MODENN':
     out_channel = cf.getint('para', 'out_channel')
     layer_num = cf.getint('para', 'layer_num')
     kernel_size = (cf.getint('para', 'kernel_size'), cf.getint('para', 'kernel_size'))
-    norm = cf.getboolean('para', 'norm')
-    dropout = cf.getfloat('para','dropout')
     dense_node = cf.getint('para', 'dense_node')
 
 
@@ -71,10 +72,7 @@ except ValueError as e:
 
 #Dataset setting
 if dataset_name == 'MNIST':
-    if model_name != 'Pretrain_5MODENN':
-        transform = transforms.ToTensor()
-    else:
-        transform = transforms.Compose([transforms.ToTensor(), Pretrain_Select(model_path='/disk/Log/torch/model/NoHiddenBase_MNIST/_ckpt_epoch_69.ckpt')])
+    transform = transforms.ToTensor()
 elif dataset_name == 'CIFAR10':
     transform = transforms.ToTensor()
     # transform = transforms.Compose([pick_edge(), transforms.ToTensor()])
@@ -108,11 +106,14 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 
 # model = MyModel.NoHiddenBase(input_size=input_size[1:], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
 
+model = MyModel.Select_MODE(input_size=input_size[-1], model_path=pretrain_model, order_dim=[300, 55, 25, 15], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
+
+
 # model = MyModel.OneHiddenBase(input_size=input_size[1:], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
 
-model = MyModel.Pretrain_5MODENN(num_classes=num_classes,bins_size=9, bins_num=35,
-                     dropout=None, learning_rate=learning_rate,weight_decay=weight_decay, loss=nn.CrossEntropyLoss(),
-                     dataset=dataset)
+# model = MyModel.Pretrain_5MODENN(num_classes=num_classes,bins_size=9, bins_num=35,
+#                      dropout=None, learning_rate=learning_rate,weight_decay=weight_decay, loss=nn.CrossEntropyLoss(),
+#                      dataset=dataset)
 
 # model = MyModel.MNISTConv2D(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, padding=(0,0), dataset=dataset)
 

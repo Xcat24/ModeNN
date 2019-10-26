@@ -1,6 +1,7 @@
 import torch
 import torchvision
 import torchvision.transforms as transforms
+import numpy as np
 from skimage import feature
 from skimage.color import rgb2gray
 
@@ -15,6 +16,24 @@ def compute_5MODE_dim(input_dim):
         temp += len(torch.combinations(torch.rand(input_dim), i+1, with_replacement=True))
     temp += input_dim
     return temp
+
+def compute_mode_dim(input_dim, order=None):
+    if isinstance(input_dim, (list,tuple)):
+        temp = 0
+        for i in range(len(input_dim)):
+            temp += len(torch.combinations(torch.rand(input_dim[i]), i+2, with_replacement=True))
+        return temp
+    else:
+        return len(torch.combinations(torch.rand(input_dim), order, with_replacement=True))
+
+def Pretrain_Mask(model_path, weight_name='fc.weight', num=35*9):
+    '''
+    根据预训练模型的权值，产生用于mask的坐标矩阵
+    '''
+    weight = torch.load(model_path)['state_dict'][weight_name]
+    weight = weight.abs().sum(dim=0)/weight.size()[0]
+    return torch.topk(weight, num)[1]
+   
 
 class pick_edge(object):
     """transform: detect the edge of the image, return 0-1 torch tensor"""
@@ -51,21 +70,21 @@ class Pretrain_Select(object):
     '''
     transform: select dims according to the pretrained model's weight
     following the ToTensor transforms
-    return 1D tensor
+    return 2D tensor of shape: (N, num)
     '''
-    def __init__(self, model_path, weight_name='fc.weight', bins_size=9, bins_num=35):
+    def __init__(self, model_path, weight_name='fc.weight', num=35*9):
         weight = torch.load(model_path)['state_dict'][weight_name]
         weight = weight.abs().sum(dim=0)/weight.size()[0]
-        self.bins_num = bins_num
-        self.bins_size = bins_size
-        self.topk_index = torch.topk(weight, self.bins_size*self.bins_num)[1]
+        self.topk_index = torch.topk(weight, num)[1]
+        del weight
+        torch.cuda.empty_cache()
 
     def __call__(self, x):
         x = torch.flatten(x, 1)
-        return torch.stack([torch.index_select(x, 1, self.topk_index[self.bins_size*i:self.bins_size*i+self.bins_size].to(torch.device('cpu'))) for i in range(self.bins_num)], dim=1)
+        return torch.index_select(x, 1, self.topk_index.to(torch.device('cpu')))
         
 
 
 if __name__ == "__main__":
-    x = torchvision.datasets.CIFAR10(root='/disk/Dataset/CIFAR-10', train=True, transform=transforms.Compose([pick_edge(), transforms.ToTensor()]), download=True)
+    x = torchvision.datasets.MNIST(root='/disk/Dataset/', train=True, transform=transforms.Compose([transforms.ToTensor(), Pretrain_Select('/disk/Log/torch/model/NoHiddenBase_MNIST/_ckpt_epoch_69.ckpt')]))
     print(x.__getitem__(1)[0].shape)

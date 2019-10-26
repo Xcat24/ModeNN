@@ -101,4 +101,40 @@ class Pretrain_5MODE(nn.Module):
         out = torch.cat(temp, dim=-1)
       
         return out
-        
+
+class Mode(nn.Module):
+    '''
+    对数据进行多阶笛卡尔扩张，用order_dim数组来控制扩张的阶数以及每个阶数扩张的维度，order_dim[i]表示用于阶数为i+2的升阶操作的输入维度
+    当对应阶数扩张的维度小于总维度时，则是按输入维度从前往后截取（因此，输入的维度最好为按重要顺序排序的）。
+    输入：(N, feature_dim)
+    输出：(N, MODE_dim) 其中MODE_dim为各阶扩张结果的拼接
+    '''
+    def __init__(self, order_dim=[300, 50, 20, 10]):
+        super(Mode, self).__init__()
+        self.order_dim = order_dim
+        self.de = [DescartesExtension(order=i+2) for i in range(len(order_dim))]
+
+    def forward(self, x):
+        de_out = [self.de[_](x[:,:self.order_dim[_]]) for _ in range(len(self.de))]
+        return torch.cat(de_out, dim=-1)
+
+class MaskLayer(nn.Module):
+    '''
+    根据mask矩阵（坐标索引，如torch.topk()[1]得到的矩阵），过滤输入，只通过mask中值为True的类型
+    输出：（N，feature）
+    '''
+    def __init__(self,mask):
+        super(MaskLayer, self).__init__()
+        self.mask = mask
+    
+    def forward(self, x):
+        return torch.index_select(x, 1, self.mask.to(x.device))
+
+
+if __name__ == "__main__":
+    import torchvision
+    from myutils.utils import Pretrain_Select
+    x = torchvision.datasets.MNIST(root='/disk/Dataset/', train=True, transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor(), 
+                                                                                                                Pretrain_Select('/disk/Log/torch/model/NoHiddenBase_MNIST/_ckpt_epoch_69.ckpt')]))
+    m = Mode()
+    print(m(x.__getitem__(1)[0]).shape)
