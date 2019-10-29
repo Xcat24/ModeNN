@@ -11,30 +11,9 @@ from myutils.datasets import ORLdataset, NumpyDataset
 from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask
 from sota_module import resnet
 
-class ModeNN(pl.LightningModule):
-    def __init__(self, input_dim, order, num_classes, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(), 
-                     dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
-        super(ModeNN, self).__init__()
-        print('{} order Descartes Extension'.format(order))
-        DE_dim = int(math.factorial(input_dim + order - 1)/(math.factorial(order)*math.factorial(input_dim - 1)))
-        print('dims after DE: ', DE_dim)
-        print('Estimated Total Size (MB): ', DE_dim*4/(1024*1024))
-        self.de = DescartesExtension(order=order)
-        self.tanh = nn.Tanh()
-        self.fc = nn.Linear(DE_dim, num_classes)
-        self.softmax = nn.Softmax(dim=1)
-        self.loss = loss
-        self.learning_rate = learning_rate
-        self.weight_decay = weight_decay
-        self.dataset = dataset
-
-    def forward(self, x):
-        out = torch.flatten(x, 1)
-        out = self.de(out)
-        out = self.tanh(out)
-        out = self.fc(out)
-        # out = self.softmax(out)
-        return out
+class BaseModel(pl.LightningModule):
+    def __init__(self,  *args, **kwargs):
+        super(BaseModel, self).__init__(*args, **kwargs)
 
     def training_step(self, batch, batch_nb):
         x, y = batch
@@ -100,23 +79,6 @@ class ModeNN(pl.LightningModule):
         avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
         return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
 
-    def configure_optimizers(self):
-        return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
-
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
-
     @pl.data_loader
     def train_dataloader(self):
         if self.dataset['name'] == 'MNIST':
@@ -181,8 +143,52 @@ class ModeNN(pl.LightningModule):
         return torch.utils.data.DataLoader(dataset=test_dataset,
                                                 batch_size=self.dataset['batch_size'],
                                                 shuffle=False)
+    
 
-class MyConv2D(pl.LightningModule):
+class ModeNN(BaseModel):
+    def __init__(self, input_dim, order, num_classes, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(), 
+                     dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
+        super(ModeNN, self).__init__()
+        print('{} order Descartes Extension'.format(order))
+        DE_dim = int(math.factorial(input_dim + order - 1)/(math.factorial(order)*math.factorial(input_dim - 1)))
+        print('dims after DE: ', DE_dim)
+        print('Estimated Total Size (MB): ', DE_dim*4/(1024*1024))
+        self.de = DescartesExtension(order=order)
+        self.tanh = nn.Tanh()
+        self.fc = nn.Linear(DE_dim, num_classes)
+        self.softmax = nn.Softmax(dim=1)
+        self.loss = loss
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.dataset = dataset
+
+    def forward(self, x):
+        out = torch.flatten(x, 1)
+        out = self.de(out)
+        out = self.tanh(out)
+        out = self.fc(out)
+        # out = self.softmax(out)
+        return out
+
+    def configure_optimizers(self):
+        return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
+
+    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
+        """
+        Do something instead of the standard optimizer behavior
+        :param epoch_nb:
+        :param batch_nb:
+        :param optimizer:
+        :param optimizer_i:
+        :return:
+        """
+        optimizer.step()
+        self.on_before_zero_grad(optimizer)
+        # clear gradients
+        optimizer.zero_grad()
+
+    
+class MyConv2D(BaseModel):
     r"""build a multi layer 2D CNN by repeating the same basic 2D CNN layer several times
     Args:
         in_channel (int): Number of channels in the input image
@@ -271,70 +277,6 @@ class MyConv2D(pl.LightningModule):
 
         return out
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
@@ -352,72 +294,7 @@ class MyConv2D(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-class MNISTConv2D(pl.LightningModule):
+class MNISTConv2D(BaseModel):
     def __init__(self, input_size, in_channel, num_classes, stride=(1,1), padding=(0,0), pooling='Max', pool_shape=(2,2),
                 loss=nn.CrossEntropyLoss(), dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
         super(MNISTConv2D, self).__init__()
@@ -454,70 +331,6 @@ class MNISTConv2D(pl.LightningModule):
 
         return out
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters())]
 
@@ -535,72 +348,7 @@ class MNISTConv2D(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-class resnext29(pl.LightningModule):
+class resnext29(BaseModel):
     def __init__(self, input_size, in_channel, num_classes, loss=nn.CrossEntropyLoss(), dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
         super(resnext29, self).__init__()
         self.dataset = dataset
@@ -610,70 +358,6 @@ class resnext29(pl.LightningModule):
     def forward(self, x):
         return self.resnext29(x)
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.SGD(self.parameters(),lr=0.1, weight_decay=0.0005, momentum=0.9)]
 
@@ -691,72 +375,7 @@ class resnext29(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-class resnet18(pl.LightningModule):
+class resnet18(BaseModel):
     def __init__(self, num_classes, loss=nn.CrossEntropyLoss(), dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
         super(resnet18, self).__init__()
         self.dataset = dataset
@@ -766,70 +385,6 @@ class resnet18(pl.LightningModule):
     def forward(self, x):
         return self.resnet18(x)
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.SGD(self.parameters(),lr=0.1, weight_decay=0.0005, momentum=0.9)]
 
@@ -847,72 +402,7 @@ class resnet18(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-class CIFARConv2D(pl.LightningModule):
+class CIFARConv2D(BaseModel):
 
     def __init__(self, input_size, in_channel, layer_num, dense_node, kernel_size, num_classes,
                      stride=1, padding=0, pooling='Max', pool_shape=(2,2), norm=False, dropout=None, learning_rate=0.001,
@@ -984,70 +474,6 @@ class CIFARConv2D(pl.LightningModule):
 
         return out
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
@@ -1065,72 +491,7 @@ class CIFARConv2D(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-class CIFARConv_MODENN(pl.LightningModule):
+class CIFARConv_MODENN(BaseModel):
     
     def __init__(self, input_size, in_channel, layer_num, dense_node, kernel_size, num_classes, order=2,
                      stride=1, padding=0, pooling='Max', pool_shape=(2,2), norm=False, dropout=None, learning_rate=0.001,
@@ -1207,70 +568,6 @@ class CIFARConv_MODENN(pl.LightningModule):
 
         return out
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
@@ -1288,72 +585,7 @@ class CIFARConv_MODENN(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-class MyCNN_MODENN(pl.LightningModule):
+class MyCNN_MODENN(BaseModel):
    
     def __init__(self, input_size, in_channel, out_channel, kernel_size, num_classes, order=2, stride=1, padding=0, pooling='Max',
                      pool_shape=(2,2), norm=False, dropout=None, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(),
@@ -1428,70 +660,6 @@ class MyCNN_MODENN(pl.LightningModule):
 
         return out
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
@@ -1509,72 +677,7 @@ class MyCNN_MODENN(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-class SLCNN_MODENN(pl.LightningModule):
+class SLCNN_MODENN(BaseModel):
        
     def __init__(self, input_size, in_channel, num_classes, order=2, stride=1, padding=0, pooling='Max', pool_shape=(2,2),
                      norm=False, dropout=None, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(),
@@ -1636,70 +739,7 @@ class SLCNN_MODENN(pl.LightningModule):
 
         return out
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
+    
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
@@ -1717,73 +757,7 @@ class SLCNN_MODENN(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-
-class SLCNN(pl.LightningModule):
+class SLCNN(BaseModel):
        
     def __init__(self, input_size, in_channel, num_classes, stride=1, padding=0, pooling='Max', pool_shape=(2,2),
                      norm=False, dropout=None, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(),
@@ -1840,70 +814,6 @@ class SLCNN(pl.LightningModule):
 
         return out
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
@@ -1921,72 +831,7 @@ class SLCNN(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-class NoHiddenBase(pl.LightningModule):
+class NoHiddenBase(BaseModel):
     def __init__(self, input_size, num_classes, norm=False, dropout=None, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(),
                      dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}, output_debug=False):
         super(NoHiddenBase,self).__init__()
@@ -2031,70 +876,6 @@ class NoHiddenBase(pl.LightningModule):
 
         return out
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
@@ -2112,80 +893,7 @@ class NoHiddenBase(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'NUMPY':
-            train_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'NUMPY':
-            val_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=False)
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'NUMPY':
-            test_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=False)
-
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-
-class OneHiddenBase(pl.LightningModule):
+class OneHiddenBase(BaseModel):
     def __init__(self, input_size, num_classes, norm=False, dropout=None, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(),
                      dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}, output_debug=False):
         super(OneHiddenBase,self).__init__()
@@ -2238,70 +946,6 @@ class OneHiddenBase(pl.LightningModule):
 
         return out
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
@@ -2319,73 +963,8 @@ class OneHiddenBase(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
 
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-
-class Pretrain_5MODENN(pl.LightningModule):
+class Pretrain_5MODENN(BaseModel):
     '''
     pick input dim according to the pretrained model's weight, select the dims related to the largest bins_num*bins_size weight,
     then split into bins_num group, imply 5 order DE layer to each group and then concat together. 
@@ -2444,70 +1023,6 @@ class Pretrain_5MODENN(pl.LightningModule):
 
         return out
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
@@ -2525,81 +1040,8 @@ class Pretrain_5MODENN(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        
-        elif self.dataset['name'] == 'NUMPY':
-            train_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        elif self.dataset['name'] == 'NUMPY':
-            val_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=False)
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'NUMPY':
-            test_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=False)
-
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-class Select_MODE(pl.LightningModule):
+    
+class Select_MODE(BaseModel):
     '''
     对输入数据进行多阶笛卡尔扩张操作，为了避免在扩张过程中高阶数扩张结果维度过大，不同的阶数选择不同的输入维度
     '''
@@ -2644,70 +1086,6 @@ class Select_MODE(pl.LightningModule):
         # out = self.softmax(out)
         return out
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-        return {
-            'loss': loss
-        }
-
-    def validation_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
-
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
-
-    def test_step(self, batch, batch_nb):
-        x, y = batch
-        out = self.forward(x)
-        loss = self.loss(out, y)
-
-        # calculate acc
-        labels_hat = torch.argmax(out, dim=1)
-        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
-
-        # return whatever you need for the collation function validation_end
-        output = {
-            'test_loss': loss,
-            'test_acc': torch.tensor(test_acc), # everything must be a tensor
-        }
-
-        return output
-
-    def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
-
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
@@ -2724,77 +1102,3 @@ class Select_MODE(pl.LightningModule):
         self.on_before_zero_grad(optimizer)
         # clear gradients
         optimizer.zero_grad()
-
-    @pl.data_loader
-    def train_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-        # MNIST dataset
-            train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        elif self.dataset['name'] == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=True,
-                                                    transform=self.dataset['transform'],
-                                                    download=True)
-        
-        elif self.dataset['name'] == 'NUMPY':
-            train_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=True)
-
-    @pl.data_loader
-    def val_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-
-        elif self.dataset['name'] == 'NUMPY':
-            val_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=False)
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
-
-    @pl.data_loader
-    def test_dataloader(self):
-        if self.dataset['name'] == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
-                                        val_split=self.dataset['val_split'])
-        elif self.dataset['name'] == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
-                                                    train=False,
-                                                    transform=self.dataset['transform'])
-        elif self.dataset['name'] == 'NUMPY':
-            test_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=False)
-
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.dataset['batch_size'],
-                                                shuffle=False)
