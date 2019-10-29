@@ -1,6 +1,14 @@
 import torch
 
 
+try:
+    from apex import amp
+
+    APEX_AVAILABLE = True
+except ImportError:
+    APEX_AVAILABLE = False
+
+
 class ModelHooks(torch.nn.Module):
 
     def on_sanity_check_start(self):
@@ -27,10 +35,6 @@ class ModelHooks(torch.nn.Module):
 
     def on_post_performance_check(self):
         pass
-
-    def on_training_metrics(self, metrics):
-        # print(metrics)
-        return
 
     def on_before_zero_grad(self, optimizer):
         """
@@ -59,8 +63,21 @@ class ModelHooks(torch.nn.Module):
         Called after loss.backward() and before optimizers do anything
         :return:
         """
-        
         pass
+
+    def backward(self, use_amp, loss, optimizer):
+        """
+        Override backward with your own implementation if you need to
+        :param use_amp: Whether amp was requested or not
+        :param loss: Loss is already scaled by accumulated grads
+        :param optimizer: Current optimizer being used
+        :return:
+        """
+        if use_amp:
+            with amp.scale_loss(loss, optimizer) as scaled_loss:
+                scaled_loss.backward()
+        else:
+            loss.backward()
 
     def data_statics(self, tag, data, verbose=False):
         """
@@ -87,5 +104,4 @@ class ModelHooks(torch.nn.Module):
             print('number of great than 0: ', pos_count)
             print('number of less than 0:  ', neg_count)
             print('number of equal to 0:   ', zero_count)
-
         return
