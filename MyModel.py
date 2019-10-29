@@ -21,7 +21,8 @@ class BaseModel(pl.LightningModule):
         loss = self.loss(out, y)
         return {
             'loss': loss,
-            'progress_bar': {'training_loss': loss} # optional (MUST ALL BE TENSORS)
+            'progress_bar': {'training_loss': loss}, # optional (MUST ALL BE TENSORS)
+            'log': {'training_loss': loss.item()}
         }
 
     def validation_step(self, batch, batch_nb):
@@ -44,6 +45,7 @@ class BaseModel(pl.LightningModule):
     def validation_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
+        tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
        
         #logger
         if self.logger:
@@ -59,7 +61,8 @@ class BaseModel(pl.LightningModule):
         return {
             'avg_val_loss': avg_loss,
             'val_acc': avg_acc,
-            'progress_bar': {'val_loss': avg_loss, 'val_acc': avg_acc}
+            'progress_bar': tqdm_dict,
+            'log': {'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()}
             }
 
     def test_step(self, batch, batch_nb):

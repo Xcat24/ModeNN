@@ -292,7 +292,7 @@ class Trainer(TrainerIOMixin,
         :return:
         """
         tqdm_dict = {
-            'loss': '{0:.3f}'.format(self.avg_loss),
+            'loss': '{0:.4f}'.format(self.avg_loss),
             'epoch': '{}'.format(self.current_epoch),
             'batch_nb': '{}'.format(self.batch_nb),
         }
