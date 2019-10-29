@@ -20,7 +20,8 @@ class BaseModel(pl.LightningModule):
         out = self.forward(x)
         loss = self.loss(out, y)
         return {
-            'loss': loss
+            'loss': loss,
+            'progress_bar': {'training_loss': loss} # optional (MUST ALL BE TENSORS)
         }
 
     def validation_step(self, batch, batch_nb):
@@ -35,14 +36,14 @@ class BaseModel(pl.LightningModule):
         # return whatever you need for the collation function validation_end
         output = {
             'val_loss': loss,
-            'val_acc': torch.tensor(val_acc), # everything must be a tensor
+            'val_acc': torch.tensor(val_acc) # everything must be a tensor
         }
 
         return output
 
     def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean().item()
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
        
         #logger
         if self.logger:
@@ -55,7 +56,11 @@ class BaseModel(pl.LightningModule):
                         self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
 
 
-        return {'avg_val_loss': avg_loss, 'val_acc': avg_acc}
+        return {
+            'avg_val_loss': avg_loss,
+            'val_acc': avg_acc,
+            'progress_bar': {'val_loss': avg_loss, 'val_acc': avg_acc}
+            }
 
     def test_step(self, batch, batch_nb):
         x, y = batch
@@ -75,9 +80,27 @@ class BaseModel(pl.LightningModule):
         return output
 
     def test_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean().item()
-        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean().item()
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
         return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
+    
+    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i, second_order_closure=None):
+        """
+        Do something instead of the standard optimizer behavior
+        :param epoch_nb:
+        :param batch_nb:
+        :param optimizer:
+        :param optimizer_i:
+        :return:
+        """
+        if isinstance(optimizer, torch.optim.LBFGS):
+            optimizer.step(second_order_closure)
+        else:
+            optimizer.step()
+
+        self.on_before_zero_grad(optimizer)
+        # clear gradients
+        optimizer.zero_grad()
 
     @pl.data_loader
     def train_dataloader(self):
@@ -173,19 +196,6 @@ class ModeNN(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
     
 class MyConv2D(BaseModel):
@@ -280,19 +290,6 @@ class MyConv2D(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
 class MNISTConv2D(BaseModel):
     def __init__(self, input_size, in_channel, num_classes, stride=(1,1), padding=(0,0), pooling='Max', pool_shape=(2,2),
@@ -334,19 +331,6 @@ class MNISTConv2D(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters())]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
 class resnext29(BaseModel):
     def __init__(self, input_size, in_channel, num_classes, loss=nn.CrossEntropyLoss(), dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
@@ -361,19 +345,6 @@ class resnext29(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.SGD(self.parameters(),lr=0.1, weight_decay=0.0005, momentum=0.9)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
 class resnet18(BaseModel):
     def __init__(self, num_classes, loss=nn.CrossEntropyLoss(), dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
@@ -388,19 +359,6 @@ class resnet18(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.SGD(self.parameters(),lr=0.1, weight_decay=0.0005, momentum=0.9)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
 class CIFARConv2D(BaseModel):
 
@@ -477,19 +435,6 @@ class CIFARConv2D(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
 class CIFARConv_MODENN(BaseModel):
     
@@ -571,19 +516,6 @@ class CIFARConv_MODENN(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
 class MyCNN_MODENN(BaseModel):
    
@@ -663,19 +595,6 @@ class MyCNN_MODENN(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
 class SLCNN_MODENN(BaseModel):
        
@@ -743,19 +662,6 @@ class SLCNN_MODENN(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
 class SLCNN(BaseModel):
        
@@ -817,19 +723,6 @@ class SLCNN(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
 class NoHiddenBase(BaseModel):
     def __init__(self, input_size, num_classes, norm=False, dropout=None, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(),
@@ -879,19 +772,6 @@ class NoHiddenBase(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
 class OneHiddenBase(BaseModel):
     def __init__(self, input_size, num_classes, norm=False, dropout=None, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(),
@@ -948,20 +828,6 @@ class OneHiddenBase(BaseModel):
 
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
-
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
 
 
 class Pretrain_5MODENN(BaseModel):
@@ -1026,20 +892,6 @@ class Pretrain_5MODENN(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
-
     
 class Select_MODE(BaseModel):
     '''
@@ -1089,16 +941,3 @@ class Select_MODE(BaseModel):
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
 
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        optimizer.step()
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()

@@ -1,6 +1,5 @@
 import os
 import shutil
-import warnings
 
 import numpy as np
 
@@ -119,13 +118,14 @@ class EarlyStopping(Callback):
         self.best = np.Inf if self.monitor_op == np.less else -np.Inf
 
     def on_epoch_end(self, epoch, logs=None):
-        current = float(logs.get(self.monitor))
+        current = logs.get(self.monitor)
         stop_training = False
         if current is None:
             print('Early stopping conditioned on metric `%s` '
                   'which is not available. Available metrics are: %s' %
                   (self.monitor, ','.join(list(logs.keys()))), RuntimeWarning)
-            exit(-1)
+            stop_training = True
+            return stop_training
 
         if self.monitor_op(current - self.min_delta, self.best):
             self.best = current
@@ -174,7 +174,7 @@ class ModelCheckpoint(Callback):
     """
 
     def __init__(self, filepath, monitor='val_loss', verbose=0,
-                 save_best_only=False, save_weights_only=False,
+                 save_best_only=True, save_weights_only=False,
                  mode='auto', period=1, prefix=''):
         super(ModelCheckpoint, self).__init__()
         self.monitor = monitor
@@ -230,7 +230,7 @@ class ModelCheckpoint(Callback):
             self.epochs_since_last_save = 0
             filepath = '{}/{}_ckpt_epoch_{}.ckpt'.format(self.filepath, self.prefix, epoch + 1)
             if self.save_best_only:
-                current = float(logs.get(self.monitor))
+                current = logs.get(self.monitor)
                 if current is None:
                     print('Can save best model only with %s available,'
                           ' skipping.' % (self.monitor), RuntimeWarning)
@@ -259,6 +259,7 @@ class GradientAccumulationScheduler(Callback):
     # Arguments
         scheduling: dict, scheduling in format {epoch: accumulation_factor}
     """
+
     def __init__(self, scheduling: dict):
         if scheduling == {}:  # empty dict error
             raise TypeError("Empty dict cannot be interpreted correct")

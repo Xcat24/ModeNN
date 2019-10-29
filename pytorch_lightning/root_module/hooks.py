@@ -57,14 +57,14 @@ class ModelHooks(torch.nn.Module):
                     for j in range(len(mod_para)):
                         self.logger.experiment.add_histogram(layer_names[i]+'_'+str(mod_para[j].shape)+'_weight-grad', mod_para[j].grad)
         return
-
+    
     def on_after_backward(self):
         """
         Called after loss.backward() and before optimizers do anything
         :return:
         """
         pass
-
+    
     def backward(self, use_amp, loss, optimizer):
         """
         Override backward with your own implementation if you need to
@@ -78,7 +78,7 @@ class ModelHooks(torch.nn.Module):
                 scaled_loss.backward()
         else:
             loss.backward()
-
+    
     def data_statics(self, tag, data, verbose=False):
         """
         compute the statics of the tensor
