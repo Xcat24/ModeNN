@@ -22,11 +22,11 @@ torch.backends.cudnn.enabled = True
 
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
-# cf.read('config/mnist.conf')
+cf.read('config/mnist.conf')
 # cf.read('config/mnist_bestcnn.conf')
 # cf.read('./config/orl.conf')
 # cf.read('./config/cifar10.conf')
-cf.read('./config/mnist_pretrain_5modenn.conf')
+# cf.read('./config/mnist_pretrain_5modenn.conf')
 #Dataset Select
 dataset_name = cf.get('dataset', 'dataset')
 data_dir = cf.get('dataset', 'data_dir')
@@ -34,7 +34,8 @@ data_dir = cf.get('dataset', 'data_dir')
 #model
 model_name = cf.get('model', 'model_name')
 saved_path = cf.get('model', 'saved_path')
-pretrain_model = cf.get('model', 'pretrain_model_path')
+if model_name == 'Pretrain_5MODENN':
+    pretrain_model = cf.get('model', 'pretrain_model_path')
 
 #parameter setting
 input_size = tuple([cf.getint('input_size', option) for option in cf['input_size']])
@@ -106,7 +107,7 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 
 # model = MyModel.NoHiddenBase(input_size=input_size[1:], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
 
-model = MyModel.Select_MODE(input_size=input_size[-1], model_path=pretrain_model, order_dim=[300, 55, 25, 15], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
+# model = MyModel.Select_MODE(input_size=input_size[-1], model_path=pretrain_model, order_dim=[300, 55, 25, 15], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
 
 
 # model = MyModel.OneHiddenBase(input_size=input_size[1:], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
@@ -121,7 +122,7 @@ model = MyModel.Select_MODE(input_size=input_size[-1], model_path=pretrain_model
 
 # model = MyModel.resnet18(num_classes=num_classes, dataset=dataset)
 
-# model = MyModel.ModeNN(input_dim=input_size[-2]*input_size[-1], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset)
+model = MyModel.ModeNN(input_dim=input_size[-2]*input_size[-1], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset)
 summary(model, input_size=input_size[1:], device='cpu')
 
 early_stop_callback = EarlyStopping(

@@ -173,13 +173,13 @@ class BaseModel(pl.LightningModule):
 
 class ModeNN(BaseModel):
     def __init__(self, input_dim, order, num_classes, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(), 
-                     dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
+                     dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':None, 'batch_size':100, 'transform':None}):
         super(ModeNN, self).__init__()
         print('{} order Descartes Extension'.format(order))
-        DE_dim = int(math.factorial(input_dim + order - 1)/(math.factorial(order)*math.factorial(input_dim - 1)))
+        DE_dim = compute_mode_dim([input_dim for _ in range(order-1)]) + input_dim
         print('dims after DE: ', DE_dim)
         print('Estimated Total Size (MB): ', DE_dim*4/(1024*1024))
-        self.de = DescartesExtension(order=order)
+        self.de_layer = Mode(order_dim=[input_dim for _ in range(order-1)])
         self.tanh = nn.Tanh()
         self.fc = nn.Linear(DE_dim, num_classes)
         self.softmax = nn.Softmax(dim=1)
@@ -189,9 +189,9 @@ class ModeNN(BaseModel):
         self.dataset = dataset
 
     def forward(self, x):
-        out = torch.flatten(x, 1)
-        out = self.de(out)
-        out = self.tanh(out)
+        origin = torch.flatten(x, 1)
+        out = self.de_layer(origin)
+        out = torch.cat([origin, out], dim=-1)
         out = self.fc(out)
         # out = self.softmax(out)
         return out
