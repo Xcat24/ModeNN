@@ -123,6 +123,8 @@ class BaseModel(pl.LightningModule):
                                                     train=True,
                                                     transform=self.dataset['transform'],
                                                     download=True)
+        elif self.dataset['name'] == 'NUMPY':
+            train_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=True)
 
         # Data loader
         return torch.utils.data.DataLoader(dataset=train_dataset,
@@ -146,6 +148,9 @@ class BaseModel(pl.LightningModule):
                                                     train=False,
                                                     transform=self.dataset['transform'])
 
+        elif self.dataset['name'] == 'NUMPY':
+            val_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=False)
+
         return torch.utils.data.DataLoader(dataset=val_dataset,
                                                 batch_size=self.dataset['batch_size'],
                                                 shuffle=False)
@@ -166,20 +171,36 @@ class BaseModel(pl.LightningModule):
             test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
                                                     train=False,
                                                     transform=self.dataset['transform'])
+        elif self.dataset['name'] == 'NUMPY':
+            test_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=False)
+
         return torch.utils.data.DataLoader(dataset=test_dataset,
                                                 batch_size=self.dataset['batch_size'],
                                                 shuffle=False)
     
 
 class ModeNN(BaseModel):
-    def __init__(self, input_dim, order, num_classes, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(), 
-                     dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':None, 'batch_size':100, 'transform':None}):
+    def __init__(self, input_dim, order, num_classes, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(), dropout=0,
+                     norm=None, dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':None, 'batch_size':100, 'transform':None}):
         super(ModeNN, self).__init__()
+        if len(input_dim) > 1:
+            input_dim = torch.tensor(input_dim).prod().item()
+        else:
+            input_dim = input_dim[0]
+
+        self.dropout = dropout
+        self.norm = norm
         print('{} order Descartes Extension'.format(order))
         DE_dim = compute_mode_dim([input_dim for _ in range(order-1)]) + input_dim
         print('dims after DE: ', DE_dim)
         print('Estimated Total Size (MB): ', DE_dim*4/(1024*1024))
         self.de_layer = Mode(order_dim=[input_dim for _ in range(order-1)])
+
+        if self.dropout:
+            self.dropout_layer = nn.Dropout(dropout)
+        if self.norm:
+            self.norm_layer = nn.BatchNorm1d(DE_dim)
+
         self.tanh = nn.Tanh()
         self.fc = nn.Linear(DE_dim, num_classes)
         self.softmax = nn.Softmax(dim=1)
@@ -192,6 +213,12 @@ class ModeNN(BaseModel):
         origin = torch.flatten(x, 1)
         out = self.de_layer(origin)
         out = torch.cat([origin, out], dim=-1)
+
+        if self.norm:
+            out = self.norm_layer(out)
+        if self.dropout:
+            out = self.dropout_layer(out)
+    
         out = self.fc(out)
         # out = self.softmax(out)
         return out

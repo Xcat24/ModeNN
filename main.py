@@ -22,7 +22,8 @@ torch.backends.cudnn.enabled = True
 
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
-cf.read('config/mnist.conf')
+cf.read('config/XOR.conf')
+# cf.read('config/mnist.conf')
 # cf.read('config/mnist_bestcnn.conf')
 # cf.read('./config/orl.conf')
 # cf.read('./config/cifar10.conf')
@@ -34,8 +35,7 @@ data_dir = cf.get('dataset', 'data_dir')
 #model
 model_name = cf.get('model', 'model_name')
 saved_path = cf.get('model', 'saved_path')
-if model_name == 'Pretrain_5MODENN':
-    pretrain_model = cf.get('model', 'pretrain_model_path')
+    
 
 #parameter setting
 input_size = tuple([cf.getint('input_size', option) for option in cf['input_size']])
@@ -47,15 +47,18 @@ weight_decay = cf.getfloat('para', 'weight_decay')
 val_split = cf.getfloat('para', 'val_split')
 norm = cf.getboolean('para', 'norm')
 dropout = cf.getfloat('para','dropout')
+order = cf.getint('para', 'order')
 
-if model_name != 'Pretrain_5MODENN':
+try:
     resize=(cf.getint('input_size', 'resize_h'), cf.getint('input_size', 'resize_w'))
-    order = cf.getint('para', 'order')
     in_channel = cf.getint('input_size', 'channel')
     out_channel = cf.getint('para', 'out_channel')
     layer_num = cf.getint('para', 'layer_num')
     kernel_size = (cf.getint('para', 'kernel_size'), cf.getint('para', 'kernel_size'))
     dense_node = cf.getint('para', 'dense_node')
+    pretrain_model = cf.get('model', 'pretrain_model_path')
+except:
+    print('Does not contain CNN or pretrained model!')
 
 
 #others
@@ -122,7 +125,7 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 
 # model = MyModel.resnet18(num_classes=num_classes, dataset=dataset)
 
-model = MyModel.ModeNN(input_dim=input_size[-2]*input_size[-1], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset)
+model = MyModel.ModeNN(input_dim=input_size[1:], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset)
 summary(model, input_size=input_size[1:], device='cpu')
 
 early_stop_callback = EarlyStopping(
