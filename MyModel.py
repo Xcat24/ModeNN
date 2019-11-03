@@ -12,7 +12,7 @@ from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, 
 from sota_module import resnet
 
 class BaseModel(pl.LightningModule):
-    def __init__(self,  *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(BaseModel, self).__init__(*args, **kwargs)
 
     def training_step(self, batch, batch_nb):
@@ -46,6 +46,7 @@ class BaseModel(pl.LightningModule):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
         tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
+        log_dict = {'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()}
        
         #logger
         if self.logger:
@@ -55,14 +56,14 @@ class BaseModel(pl.LightningModule):
                 if mod_para:
                     for j in range(len(mod_para)):
                         w = mod_para[j].clone().detach()
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(w.shape)+'_weight', w)
-
+                        weight_name=layer_names[i]+'_'+str(w.shape)+'_weight'
+                        self.logger.experiment.add_histogram(weight_name, w)
 
         return {
             'avg_val_loss': avg_loss,
             'val_acc': avg_acc,
             'progress_bar': tqdm_dict,
-            'log': {'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()}
+            'log': log_dict
             }
 
     def test_step(self, batch, batch_nb):
@@ -180,21 +181,22 @@ class BaseModel(pl.LightningModule):
     
 
 class ModeNN(BaseModel):
-    def __init__(self, input_dim, order, num_classes, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(), dropout=0,
-                     norm=None, dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':None, 'batch_size':100, 'transform':None}):
+    def __init__(self, input_size, order, num_classes, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(), dropout=0,
+                     norm=None, log_weight=True, dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':None, 'batch_size':100, 'transform':None}):
         super(ModeNN, self).__init__()
-        if len(input_dim) > 1:
-            input_dim = torch.tensor(input_dim).prod().item()
+        if len(input_size) > 1:
+            input_size = torch.tensor(input_size).prod().item()
         else:
-            input_dim = input_dim[0]
+            input_size = input_size[0]
 
         self.dropout = dropout
         self.norm = norm
+        self.log_weight=log_weight
         print('{} order Descartes Extension'.format(order))
-        DE_dim = compute_mode_dim([input_dim for _ in range(order-1)]) + input_dim
+        DE_dim = compute_mode_dim([input_size for _ in range(order-1)]) + input_size
         print('dims after DE: ', DE_dim)
         print('Estimated Total Size (MB): ', DE_dim*4/(1024*1024))
-        self.de_layer = Mode(order_dim=[input_dim for _ in range(order-1)])
+        self.de_layer = Mode(order_dim=[input_size for _ in range(order-1)])
 
         if self.dropout:
             self.dropout_layer = nn.Dropout(dropout)
@@ -225,6 +227,29 @@ class ModeNN(BaseModel):
 
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)]
+
+    def validation_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
+        tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
+        log_dict = {'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()}
+       
+        #log weight
+        if self.log_weight:
+            mode_para = self.fc.weight
+            poly_item = ['x1','x2', 'x1x1','x1x2','x2x2']#TODO 生成函数
+            for i in range(len(mode_para)):
+                for j in range(mode_para.shape[-1]):
+                    w = mode_para[i][j].clone().detach()
+                    log_dict.update({'node{}_'.format(i)+poly_item[j]:w})
+                    #添加梯度数据
+
+        return {
+            'avg_val_loss': avg_loss,
+            'val_acc': avg_acc,
+            'progress_bar': tqdm_dict,
+            'log': log_dict
+            }
 
 
     
