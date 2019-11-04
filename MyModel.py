@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 from layer import DescartesExtension, MaskDE, LocalDE, SLConv, Mode, MaskLayer
 from torch.utils.data import Dataset, DataLoader
 from myutils.datasets import ORLdataset, NumpyDataset
-from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask
+from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask, find_polyitem
 from sota_module import resnet
 
 class BaseModel(pl.LightningModule):
@@ -185,18 +185,19 @@ class ModeNN(BaseModel):
                      norm=None, log_weight=True, dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':None, 'batch_size':100, 'transform':None}):
         super(ModeNN, self).__init__()
         if len(input_size) > 1:
-            input_size = torch.tensor(input_size).prod().item()
+            self.input_size = torch.tensor(input_size).prod().item()
         else:
-            input_size = input_size[0]
+            self.input_size = input_size[0]
 
+        self.order=order
         self.dropout = dropout
         self.norm = norm
         self.log_weight=log_weight
-        print('{} order Descartes Extension'.format(order))
-        DE_dim = compute_mode_dim([input_size for _ in range(order-1)]) + input_size
+        print('{} order Descartes Extension'.format(self.order))
+        DE_dim = compute_mode_dim([self.input_size for _ in range(self.order-1)]) + self.input_size
         print('dims after DE: ', DE_dim)
         print('Estimated Total Size (MB): ', DE_dim*4/(1024*1024))
-        self.de_layer = Mode(order_dim=[input_size for _ in range(order-1)])
+        self.de_layer = Mode(order_dim=[self.input_size for _ in range(self.order-1)])
 
         if self.dropout:
             self.dropout_layer = nn.Dropout(dropout)
@@ -237,12 +238,12 @@ class ModeNN(BaseModel):
         #log weight
         if self.log_weight:
             mode_para = self.fc.weight
-            poly_item = ['x1','x2', 'x1x1','x1x2','x2x2']#TODO 生成函数
+            poly_item = find_polyitem(dim=self.input_size, order=self.order) 
             for i in range(len(mode_para)):
                 for j in range(mode_para.shape[-1]):
                     w = mode_para[i][j].clone().detach()
                     log_dict.update({'node{}_'.format(i)+poly_item[j]:w})
-                    #添加梯度数据
+        
 
         return {
             'avg_val_loss': avg_loss,
