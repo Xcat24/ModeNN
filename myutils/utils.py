@@ -33,7 +33,17 @@ def Pretrain_Mask(model_path, weight_name='fc.weight', num=35*9):
     weight = torch.load(model_path)['state_dict'][weight_name]
     weight = weight.abs().sum(dim=0)/weight.size()[0]
     return torch.topk(weight, num)[1]
-   
+
+def find_polyitem(dim, order):
+    result = ['x{}'.format(_) for _ in range(dim)]
+    for i in range(1, order):
+        temp = torch.combinations(torch.arange(0,dim), i+1, with_replacement=True)
+        for j in range(len(temp)):
+            item = ''
+            for k in range(len(temp[j])):
+                item += 'x{}'.format(temp[j,k])
+            result.append(item)
+    return result
 
 class pick_edge(object):
     """transform: detect the edge of the image, return 0-1 torch tensor"""
@@ -86,5 +96,6 @@ class Pretrain_Select(object):
 
 
 if __name__ == "__main__":
-    x = torchvision.datasets.MNIST(root='/disk/Dataset/', train=True, transform=transforms.Compose([transforms.ToTensor(), Pretrain_Select('/disk/Log/torch/model/NoHiddenBase_MNIST/_ckpt_epoch_69.ckpt')]))
-    print(x.__getitem__(1)[0].shape)
+    # x = torchvision.datasets.MNIST(root='/disk/Dataset/', train=True, transform=transforms.Compose([transforms.ToTensor(), Pretrain_Select('/disk/Log/torch/model/NoHiddenBase_MNIST/_ckpt_epoch_69.ckpt')]))
+    # print(x.__getitem__(1)[0].shape)
+    find_polyitem(2,3)
