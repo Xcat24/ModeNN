@@ -193,6 +193,7 @@ class ModeNN(BaseModel):
         self.dropout = dropout
         self.norm = norm
         self.log_weight=log_weight
+        self.log_dict = {}
         print('{} order Descartes Extension'.format(self.order))
         DE_dim = compute_mode_dim([self.input_size for _ in range(self.order-1)]) + self.input_size
         print('dims after DE: ', DE_dim)
@@ -233,7 +234,7 @@ class ModeNN(BaseModel):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
         tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
-        log_dict = {'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()}
+        self.log_dict.update({'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()})
        
         #log weight
         if self.log_weight:
@@ -242,14 +243,13 @@ class ModeNN(BaseModel):
             for i in range(len(mode_para)):
                 for j in range(mode_para.shape[-1]):
                     w = mode_para[i][j].clone().detach()
-                    log_dict.update({'node{}_'.format(i)+poly_item[j]:w})
-        
+                    self.log_dict.update({'node{}_'.format(i)+poly_item[j]:w})
 
         return {
             'avg_val_loss': avg_loss,
             'val_acc': avg_acc,
             'progress_bar': tqdm_dict,
-            'log': log_dict
+            'log': self.log_dict
             }
 
 

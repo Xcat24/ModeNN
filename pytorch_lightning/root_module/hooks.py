@@ -1,6 +1,5 @@
 import torch
 
-
 try:
     from apex import amp
 
@@ -8,6 +7,16 @@ try:
 except ImportError:
     APEX_AVAILABLE = False
 
+def find_polyitem(dim, order):
+    result = ['x{}'.format(_) for _ in range(dim)]
+    for i in range(1, order):
+        temp = torch.combinations(torch.arange(0,dim), i+1, with_replacement=True)
+        for j in range(len(temp)):
+            item = ''
+            for k in range(len(temp[j])):
+                item += 'x{}'.format(temp[j,k])
+            result.append(item)
+    return result
 
 class ModelHooks(torch.nn.Module):
 
@@ -49,13 +58,24 @@ class ModelHooks(torch.nn.Module):
         :return:
         """
         #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        self.logger.experiment.add_histogram(layer_names[i]+'_'+str(mod_para[j].shape)+'_weight-grad', mod_para[j].grad)
+        # if self.logger:
+        #     layer_names = list(self._modules)
+        #     for i in range(len(layer_names)):
+        #         mod_para = list(self._modules[layer_names[i]].parameters())
+        #         if mod_para:
+        #             for j in range(len(mod_para)):
+        #                 self.logger.experiment.add_histogram(layer_names[i]+'_'+str(mod_para[j].shape)+'_weight-grad', mod_para[j].grad)
+        #log gradient
+        if self.log_weight:
+            mode_para = self.fc.weight.grad
+            try:
+                poly_item = find_polyitem(dim=self.input_size, order=self.order) 
+                for i in range(len(mode_para)):
+                    for j in range(mode_para.shape[-1]):
+                        w = mode_para[i][j].clone().detach()
+                        self.log_dict.update({'node{}_'.format(i)+poly_item[j]+'_grad':w})
+            except TypeError as e:
+                pass
         return
     
     def on_after_backward(self):
