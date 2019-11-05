@@ -1,4 +1,5 @@
 import math
+import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
@@ -235,6 +236,7 @@ class ModeNN(BaseModel):
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
         tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
         self.log_dict.update({'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()})
+        weight_dict = {}
        
         #log weight
         if self.log_weight:
@@ -244,6 +246,9 @@ class ModeNN(BaseModel):
                 for j in range(mode_para.shape[-1]):
                     w = mode_para[i][j].clone().detach()
                     self.log_dict.update({'node{}_'.format(i)+poly_item[j]:w})
+                    weight_dict.update({'node{}_'.format(i)+poly_item[j]:w.item()})
+            # self.logger.experiment.add_scalars('mode_layer_weight', {'xsinx':i*np.sin(i/5), 'xcosx':i*np.cos(i/5), 'tanx': np.tan(i/5)}, self.current_epoch)#TODO 记录权值scalars
+            self.logger.experiment.add_scalars('mode_layer_weight', weight_dict, self.current_epoch)
 
         return {
             'avg_val_loss': avg_loss,
