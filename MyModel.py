@@ -229,7 +229,7 @@ class ModeNN(BaseModel):
 
     def configure_optimizers(self):
         opt = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[30, 50], gamma=0.1)]
+        return [opt]#, [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[80, 160], gamma=0.1)]
 
     def validation_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()

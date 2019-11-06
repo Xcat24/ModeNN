@@ -4,6 +4,8 @@ import torchvision.transforms as transforms
 import numpy as np
 from skimage import feature
 from skimage.color import rgb2gray
+from matplotlib import pyplot as plt
+
 
 def compute_cnn_out(input_size, kernel_size, padding=(0,0), dilation=(1,1), stride=(1,1), pooling=(2,2)):
     h_out = ((input_size[0]+2*padding[0]-dilation[0]*(kernel_size[0]-1)-1)//stride[0] + 1)//pooling[0]
@@ -44,6 +46,20 @@ def find_polyitem(dim, order):
                 item += 'x{}'.format(temp[j,k])
             result.append(item)
     return result
+
+def draw_weight_distribute(model, input_dim, order, class_num, out_put):
+    weight = torch.load(model)['state_dict']['fc.weight']
+    labels = ['node{}'.format(i) for i in range(len(weight))]
+    poly_item = find_polyitem(dim=input_dim, order=order)
+    fig = plt.figure()
+    x = range(len(poly_item))
+    for i in range(len(weight)):
+        w = weight[i].cpu().numpy()
+        plt.bar([j+0.2*i for j in x], w, width=0.2, label=labels[i])
+    plt.xticks(x, poly_item, rotation=-45, fontsize='small')
+    plt.legend()
+    plt.savefig(out_put)
+
 
 class pick_edge(object):
     """transform: detect the edge of the image, return 0-1 torch tensor"""
@@ -98,4 +114,4 @@ class Pretrain_Select(object):
 if __name__ == "__main__":
     # x = torchvision.datasets.MNIST(root='/disk/Dataset/', train=True, transform=transforms.Compose([transforms.ToTensor(), Pretrain_Select('/disk/Log/torch/model/NoHiddenBase_MNIST/_ckpt_epoch_69.ckpt')]))
     # print(x.__getitem__(1)[0].shape)
-    find_polyitem(2,3)
+    draw_weight_distribute('/disk/Log/torch/model/3-ModeNN_Iris/_ckpt_epoch_15.ckpt', input_dim=4, order=2, class_num=3, out_put='/disk/test.jpg')
