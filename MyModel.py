@@ -11,6 +11,7 @@ from torch.utils.data import Dataset, DataLoader
 from myutils.datasets import ORLdataset, NumpyDataset
 from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask, find_polyitem
 from sota_module import resnet
+from matplotlib import pyplot as plt
 
 class BaseModel(pl.LightningModule):
     def __init__(self, *args, **kwargs):
@@ -247,6 +248,17 @@ class ModeNN(BaseModel):
                     w = mode_para[i][j].clone().detach()
                     weight_dict.update({'node{}_'.format(i)+poly_item[j]:w.item()})
             self.logger.experiment.add_scalars('mode_layer_weight', weight_dict, self.current_epoch)
+
+            #draw matplot figure
+            labels = ['node{}'.format(i) for i in range(len(mode_para))]
+            x = range(len(poly_item))
+            fig = plt.figure()
+            for i in range(len(mode_para)):
+                w = mode_para[i].cpu().numpy()
+                plt.bar([j+0.2*i for j in x], w, width=0.2, label=labels[i])
+            plt.xticks(x, poly_item, rotation=-45, fontsize='small')
+            plt.legend()
+            self.logger.experiment.add_figure('epoch_{}'.format(self.current_epoch), fig, self.current_epoch)
 
         return {
             'avg_val_loss': avg_loss,
