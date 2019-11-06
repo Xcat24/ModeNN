@@ -194,7 +194,6 @@ class ModeNN(BaseModel):
         self.dropout = dropout
         self.norm = norm
         self.log_weight=log_weight
-        self.log_dict = {}
         print('{} order Descartes Extension'.format(self.order))
         DE_dim = compute_mode_dim([self.input_size for _ in range(self.order-1)]) + self.input_size
         print('dims after DE: ', DE_dim)
@@ -235,26 +234,24 @@ class ModeNN(BaseModel):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
         tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
-        self.log_dict.update({'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()})
+        log_dict = ({'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()})
         weight_dict = {}
        
-        #log weight
+        #log weight to tensorboard
         if self.log_weight:
             mode_para = self.fc.weight
             poly_item = find_polyitem(dim=self.input_size, order=self.order) 
             for i in range(len(mode_para)):
                 for j in range(mode_para.shape[-1]):
                     w = mode_para[i][j].clone().detach()
-                    self.log_dict.update({'node{}_'.format(i)+poly_item[j]:w})
                     weight_dict.update({'node{}_'.format(i)+poly_item[j]:w.item()})
-            # self.logger.experiment.add_scalars('mode_layer_weight', {'xsinx':i*np.sin(i/5), 'xcosx':i*np.cos(i/5), 'tanx': np.tan(i/5)}, self.current_epoch)#TODO 记录权值scalars
             self.logger.experiment.add_scalars('mode_layer_weight', weight_dict, self.current_epoch)
 
         return {
             'avg_val_loss': avg_loss,
             'val_acc': avg_acc,
             'progress_bar': tqdm_dict,
-            'log': self.log_dict
+            'log': log_dict
             }
 
 

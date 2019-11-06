@@ -68,12 +68,14 @@ class ModelHooks(torch.nn.Module):
         #log gradient
         if self.log_weight:
             mode_para = self.fc.weight.grad
+            grad_dict = {}
             try:
                 poly_item = find_polyitem(dim=self.input_size, order=self.order) 
                 for i in range(len(mode_para)):
                     for j in range(mode_para.shape[-1]):
                         w = mode_para[i][j].clone().detach()
-                        self.log_dict.update({'node{}_'.format(i)+poly_item[j]+'_grad':w})
+                        grad_dict.update({'node{}_'.format(i)+poly_item[j]+'_grad':w.item()})
+                self.logger.experiment.add_scalars('weight_grad', grad_dict)
             except TypeError as e:
                 pass
         return
