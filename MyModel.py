@@ -243,10 +243,10 @@ class ModeNN(BaseModel):
         if self.log_weight:
             mode_para = self.fc.weight
             poly_item = find_polyitem(dim=self.input_size, order=self.order) 
-            for i in range(len(mode_para)):
-                for j in range(mode_para.shape[-1]):
-                    w = mode_para[i][j].clone().detach()
-                    weight_dict.update({'node{}_'.format(i)+poly_item[j]:w.item()})
+            node_mean = mode_para.mean(dim=0)
+            for j in range(len(node_mean)):
+                w = node_mean[j].clone().detach()
+                weight_dict.update({poly_item[j]:w.item()})
             self.logger.experiment.add_scalars('mode_layer_weight', weight_dict, self.current_epoch)
 
             #draw matplot figure

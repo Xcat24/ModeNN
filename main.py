@@ -22,10 +22,10 @@ torch.backends.cudnn.enabled = True
 
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
-cf.read('config/XOR.conf')
+# cf.read('config/XOR.conf')
 # cf.read('config/iris.conf')
 # cf.read('config/circle_square.conf')
-# cf.read('config/TC.conf')
+cf.read('config/TC.conf')
 # cf.read('config/mnist.conf')
 # cf.read('config/mnist_bestcnn.conf')
 # cf.read('./config/orl.conf')
