@@ -184,7 +184,7 @@ class BaseModel(pl.LightningModule):
 
 class ModeNN(BaseModel):
     def __init__(self, input_size, order, num_classes, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(), dropout=0,
-                     norm=None, log_weight=True, dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':None, 'batch_size':100, 'transform':None}):
+                     norm=None, log_weight=50, dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':None, 'batch_size':100, 'transform':None}):
         super(ModeNN, self).__init__()
         if len(input_size) > 1:
             self.input_size = torch.tensor(input_size).prod().item()
@@ -249,16 +249,17 @@ class ModeNN(BaseModel):
                 weight_dict.update({poly_item[j]:w.item()})
             self.logger.experiment.add_scalars('mode_layer_weight', weight_dict, self.current_epoch)
 
-            #draw matplot figure
-            labels = ['node{}'.format(i) for i in range(len(mode_para))]
-            x = range(len(poly_item))
-            fig = plt.figure()
-            for i in range(len(mode_para)):
-                w = mode_para[i].cpu().numpy()
-                plt.bar([j+0.2*i for j in x], w, width=0.2, label=labels[i])
-            plt.xticks(x, poly_item, rotation=-45, fontsize='small')
-            plt.legend()
-            self.logger.experiment.add_figure('epoch_{}'.format(self.current_epoch), fig, self.current_epoch)
+            if self.current_epoch%self.log_weight==0:
+                #draw matplot figure
+                labels = ['node{}'.format(i) for i in range(len(mode_para))]
+                x = range(len(poly_item))
+                fig = plt.figure(figsize=(0.2*mode_para.size()[0]*mode_para.size()[1],10))
+                for i in range(len(mode_para)):
+                    w = mode_para[i].cpu().numpy()
+                    plt.bar([j+0.2*i for j in x], w, width=0.2, label=labels[i])
+                plt.xticks(x, poly_item, rotation=-45, fontsize=6)
+                plt.legend()
+                self.logger.experiment.add_figure('epoch_{}'.format(self.current_epoch), fig, self.current_epoch)
 
         return {
             'avg_val_loss': avg_loss,
