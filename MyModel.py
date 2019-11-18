@@ -122,9 +122,17 @@ class BaseModel(pl.LightningModule):
                                         transform=self.dataset['transform'],
                                         val_split=self.dataset['val_split'])
         elif self.dataset['name'] == 'CIFAR10':
+            transform = transforms.Compose([
+                transforms.Pad(4, padding_mode='reflect'),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomCrop(32),
+                transforms.ToTensor(),
+                transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0,
+                                                np.array([63.0, 62.1, 66.7]) / 255.0)
+            ])
             train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
                                                     train=True,
-                                                    transform=self.dataset['transform'],
+                                                    transform=transform, #self.dataset['transform'],
                                                     download=True)
         elif self.dataset['name'] == 'NUMPY':
             train_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=True)

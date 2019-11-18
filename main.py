@@ -81,7 +81,7 @@ except ValueError as e:
 if dataset_name == 'MNIST':
     transform = transforms.ToTensor()
 elif dataset_name == 'CIFAR10':
-    transform = transforms.ToTensor()
+    transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)])
     # transform = transforms.Compose([pick_edge(), transforms.ToTensor()])
 elif dataset_name == 'ORL':
     transform = transforms.Compose([transforms.Resize(resize), transforms.ToTensor()])
