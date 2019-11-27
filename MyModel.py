@@ -116,24 +116,17 @@ class BaseModel(pl.LightningModule):
         # MNIST dataset
             train_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
                                                     train=True,
-                                                    transform=self.dataset['transform'],
+                                                    transform=self.dataset['train_transform'],
                                                     download=True)
         elif self.dataset['name'] == 'ORL':
             train_dataset = ORLdataset(train=True,
                                         root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
+                                        transform=self.dataset['train_transform'],
                                         val_split=self.dataset['val_split'])
         elif self.dataset['name'] == 'CIFAR10':
-            transform = transforms.Compose([
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomCrop(32, padding=4),
-                transforms.ToTensor(),
-                transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0,
-                                                np.array([63.0, 62.1, 66.7]) / 255.0)
-            ])
             train_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
                                                     train=True,
-                                                    transform=transform, #self.dataset['transform'],
+                                                    transform=self.dataset['train_transform'], #self.dataset['transform'],
                                                     download=True)
         elif self.dataset['name'] == 'NUMPY':
             train_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=True)
@@ -149,16 +142,16 @@ class BaseModel(pl.LightningModule):
             # MNIST dataset
             val_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
                                                     train=False,
-                                                    transform=self.dataset['transform'])
+                                                    transform=self.dataset['val_transform'])
         elif self.dataset['name'] == 'ORL':
             val_dataset = ORLdataset(train=False,
                                         root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
+                                        transform=self.dataset['val_transform'],
                                         val_split=self.dataset['val_split'])
         elif self.dataset['name'] == 'CIFAR10':
             val_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
                                                     train=False,
-                                                    transform=self.dataset['transform'])
+                                                    transform=self.dataset['val_transform'])
 
         elif self.dataset['name'] == 'NUMPY':
             val_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=False)
@@ -173,16 +166,16 @@ class BaseModel(pl.LightningModule):
             # MNIST dataset
             test_dataset = torchvision.datasets.MNIST(root=self.dataset['dir'],
                                                     train=False,
-                                                    transform=self.dataset['transform'])
+                                                    transform=self.dataset['val_transform'])
         elif self.dataset['name'] == 'ORL':
             test_dataset = ORLdataset(train=False,
                                         root_dir=self.dataset['dir'],
-                                        transform=self.dataset['transform'],
+                                        transform=self.dataset['val_transform'],
                                         val_split=self.dataset['val_split'])
         elif self.dataset['name'] == 'CIFAR10':
             test_dataset = torchvision.datasets.CIFAR10(root=self.dataset['dir'],
                                                     train=False,
-                                                    transform=self.dataset['transform'])
+                                                    transform=self.dataset['val_transform'])
         elif self.dataset['name'] == 'NUMPY':
             test_dataset = NumpyDataset(root_dir=self.dataset['dir'], train=False)
 

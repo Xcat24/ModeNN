@@ -81,22 +81,27 @@ except ValueError as e:
 
 #Dataset setting
 if dataset_name == 'MNIST':
-    transform = transforms.ToTensor()
+    train_transform = transforms.ToTensor()
+    val_transform = transforms.ToTensor()
 elif dataset_name == 'CIFAR10':
-    transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)])
-    # if AUGMENTATION:
-    #     transform = transforms.Compose([
-    #         transforms.RandomHorizontalFlip(),
-    #         transforms.RandomCrop(32, padding=4),
-    #         transform
-    #     ])
+    val_transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)])
+    if AUGMENTATION:
+        train_transform = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(32, padding=4),
+            val_transform
+        ])
+    else:
+        train_transform = val_transform
     # transform = transforms.Compose([pick_edge(), transforms.ToTensor()])
 elif dataset_name == 'ORL':
-    transform = transforms.Compose([transforms.Resize(resize), transforms.ToTensor()])
+    train_transform = transforms.Compose([transforms.Resize(resize), transforms.ToTensor()])
+    val_transform = train_transform
 elif dataset_name == 'NUMPY':
-    transform = None
+    train_transform = None
+    val_transform = train_transform
 
-dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_size':batch_size, 'transform':transform}
+dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_size':batch_size, 'train_transform':train_transform, 'val_transform':val_transform}
 
 # model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=in_channel, out_channel=out_channel, layer_num=layer_num,
 #                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
