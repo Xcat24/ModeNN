@@ -10,12 +10,14 @@ from layer import DescartesExtension, MaskDE, LocalDE, SLConv, Mode, MaskLayer
 from torch.utils.data import Dataset, DataLoader
 from myutils.datasets import ORLdataset, NumpyDataset
 from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask, find_polyitem
-from sota_module import resnet
+from sota_module import resnet, Wide_ResNet
 from matplotlib import pyplot as plt
 
 class BaseModel(pl.LightningModule):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, loss, dataset, *args, **kwargs):
         super(BaseModel, self).__init__(*args, **kwargs)
+        self.loss = loss
+        self.dataset = dataset
 
     def training_step(self, batch, batch_nb):
         x, y = batch
@@ -123,9 +125,8 @@ class BaseModel(pl.LightningModule):
                                         val_split=self.dataset['val_split'])
         elif self.dataset['name'] == 'CIFAR10':
             transform = transforms.Compose([
-                transforms.Pad(4, padding_mode='reflect'),
                 transforms.RandomHorizontalFlip(),
-                transforms.RandomCrop(32),
+                transforms.RandomCrop(32, padding=4),
                 transforms.ToTensor(),
                 transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0,
                                                 np.array([63.0, 62.1, 66.7]) / 255.0)
@@ -427,18 +428,32 @@ class resnext29(BaseModel):
 
 
 class resnet18(BaseModel):
-    def __init__(self, num_classes, loss=nn.CrossEntropyLoss(), dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
-        super(resnet18, self).__init__()
-        self.dataset = dataset
-        self.loss = loss
+    def __init__(self, num_classes, learning_rate=0.1, weight_decay=0.0005, loss=nn.CrossEntropyLoss(), dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
+        super(resnet18, self).__init__(loss=loss, dataset=dataset)
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
         self.resnet18 = resnet.resnet18(num_classes=num_classes)
 
     def forward(self, x):
         return self.resnet18(x)
 
     def configure_optimizers(self):
-        return [torch.optim.SGD(self.parameters(),lr=0.1, weight_decay=0.0005, momentum=0.9)]
+        return [torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, momentum=0.9)]
 
+class wide_resnet(BaseModel):
+    def __init__(self, depth, width, dropout, num_classes, learning_rate=0.1, weight_decay=0.0005, 
+                loss=nn.CrossEntropyLoss(), dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
+        super(wide_resnet, self).__init__(loss=loss, dataset=dataset)
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.wide_resnet = Wide_ResNet.wide_resnet(depth, width, dropout, num_classes)
+
+    def forward(self, x):
+        return self.wide_resnet(x)
+    
+    def configure_optimizers(self):
+        opt = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, momentum=0.9)
+        return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[60, 120, 160], gamma=0.2)]
 
 class CIFARConv2D(BaseModel):
 

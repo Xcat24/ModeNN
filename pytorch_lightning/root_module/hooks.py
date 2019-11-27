@@ -66,18 +66,21 @@ class ModelHooks(torch.nn.Module):
         #             for j in range(len(mod_para)):
         #                 self.logger.experiment.add_histogram(layer_names[i]+'_'+str(mod_para[j].shape)+'_weight-grad', mod_para[j].grad)
         #log gradient
-        if self.log_weight:
-            mode_para = self.fc.weight.grad
-            grad_dict = {}
-            try:
-                poly_item = find_polyitem(dim=self.input_size, order=self.order) 
-                node_mean = mode_para.mean(dim=0)
-                for j in range(len(node_mean)):
-                    w = node_mean[j].clone().detach()
-                    grad_dict.update({poly_item[j]+'_grad':w.item()})
-                self.logger.experiment.add_scalars('weight_grad', grad_dict)
-            except TypeError as e:
-                pass
+        try:
+            if self.log_weight:
+                mode_para = self.fc.weight.grad
+                grad_dict = {}
+                try:
+                    poly_item = find_polyitem(dim=self.input_size, order=self.order) 
+                    node_mean = mode_para.mean(dim=0)
+                    for j in range(len(node_mean)):
+                        w = node_mean[j].clone().detach()
+                        grad_dict.update({poly_item[j]+'_grad':w.item()})
+                    self.logger.experiment.add_scalars('weight_grad', grad_dict)
+                except TypeError as e:
+                    pass
+        except AttributeError as e:
+            pass
         return
     
     def on_after_backward(self):

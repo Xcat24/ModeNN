@@ -15,6 +15,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.logging import TestTubeLogger
 from myutils.utils import pick_edge, Pretrain_Select
 
+AUGMENTATION = False
 
 # Device configuration
 torch.backends.cudnn.benchmark = True
@@ -25,11 +26,11 @@ cf = configparser.ConfigParser()
 # cf.read('config/XOR.conf')
 # cf.read('config/iris.conf')
 # cf.read('config/circle_square.conf')
-cf.read('config/TC.conf')
+# cf.read('config/TC.conf')
 # cf.read('config/mnist.conf')
 # cf.read('config/mnist_bestcnn.conf')
 # cf.read('./config/orl.conf')
-# cf.read('./config/cifar10.conf')
+cf.read('./config/cifar10.conf')
 # cf.read('./config/mnist_pretrain_5modenn.conf')
 #Dataset Select
 dataset_name = cf.get('dataset', 'dataset')
@@ -53,6 +54,7 @@ dropout = cf.getfloat('para','dropout')
 order = cf.getint('para', 'order')
 
 try:
+    AUGMENTATION = cf.getboolean('para', 'augmentation')
     resize=(cf.getint('input_size', 'resize_h'), cf.getint('input_size', 'resize_w'))
     in_channel = cf.getint('input_size', 'channel')
     out_channel = cf.getint('para', 'out_channel')
@@ -82,6 +84,12 @@ if dataset_name == 'MNIST':
     transform = transforms.ToTensor()
 elif dataset_name == 'CIFAR10':
     transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)])
+    # if AUGMENTATION:
+    #     transform = transforms.Compose([
+    #         transforms.RandomHorizontalFlip(),
+    #         transforms.RandomCrop(32, padding=4),
+    #         transform
+    #     ])
     # transform = transforms.Compose([pick_edge(), transforms.ToTensor()])
 elif dataset_name == 'ORL':
     transform = transforms.Compose([transforms.Resize(resize), transforms.ToTensor()])
@@ -128,7 +136,9 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 
 # model = MyModel.resnet18(num_classes=num_classes, dataset=dataset)
 
-model = MyModel.ModeNN(input_size=input_size[1:], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=10)
+model = MyModel.wide_resnet(depth=28, width=10, dropout=dropout, learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes,dataset=dataset)
+
+# model = MyModel.ModeNN(input_size=input_size[1:], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=10)
 summary(model, input_size=input_size[1:], device='cpu')
 
 early_stop_callback = EarlyStopping(
