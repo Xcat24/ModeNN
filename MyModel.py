@@ -187,7 +187,7 @@ class BaseModel(pl.LightningModule):
 class ModeNN(BaseModel):
     def __init__(self, input_size, order, num_classes, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(), dropout=0,
                      norm=None, log_weight=50, dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':None, 'batch_size':100, 'transform':None}):
-        super(ModeNN, self).__init__()
+        super(ModeNN, self).__init__(loss=loss, dataset=dataset)
         if len(input_size) > 1:
             self.input_size = torch.tensor(input_size).prod().item()
         else:
@@ -211,10 +211,8 @@ class ModeNN(BaseModel):
         self.tanh = nn.Tanh()
         self.fc = nn.Linear(DE_dim, num_classes)
         self.softmax = nn.Softmax(dim=1)
-        self.loss = loss
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        self.dataset = dataset
 
     def forward(self, x):
         origin = torch.flatten(x, 1)
@@ -231,8 +229,9 @@ class ModeNN(BaseModel):
         return out
 
     def configure_optimizers(self):
-        opt = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        return [opt]#, [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[80, 160], gamma=0.1)]
+        # opt = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        opt = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, momentum=0.9)
+        return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[60, 120, 160], gamma=0.2)]
 
     def validation_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
@@ -242,6 +241,7 @@ class ModeNN(BaseModel):
         weight_dict = {}
        
         #log weight to tensorboard
+        # 在大维度情况下，会产生过多的线程，导致崩溃（如CIFAR10数据）
         if self.log_weight:
             mode_para = self.fc.weight
             poly_item = find_polyitem(dim=self.input_size, order=self.order) 
@@ -435,7 +435,7 @@ class resnet18(BaseModel):
 
 class wide_resnet(BaseModel):
     def __init__(self, depth, width, dropout, num_classes, learning_rate=0.1, weight_decay=0.0005, 
-                loss=nn.CrossEntropyLoss(), dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':100, 'transform':None}):
+                loss=nn.CrossEntropyLoss(), dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':0.1, 'batch_size':128, 'train_transform':None, 'val_transform':None}):
         super(wide_resnet, self).__init__(loss=loss, dataset=dataset)
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
