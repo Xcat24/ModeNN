@@ -274,44 +274,56 @@ class ModeNN(BaseModel):
 
 class C_MODENN(BaseModel):
     def __init__(self, input_size, in_channel, out_channel, order, num_classes, dataset, learning_rate=0.001, weight_decay=0.001,
-                     loss=nn.CrossEntropyLoss(), dropout=0, lr_milestones=[60,120,160], norm=None, log_weight=50):
+                     share_fc_weights=False, loss=nn.CrossEntropyLoss(), dropout=0, lr_milestones=[60,120,160], norm=None, log_weight=50):
         super(C_MODENN,self).__init__(loss, dataset)
         
-        self.order=order
         self.dropout = dropout
         self.norm = norm
         self.log_weight=log_weight
         self.learning_rate = learning_rate
         self.lr_milestones = lr_milestones
         self.weight_decay = weight_decay
+        self.share_fc_weights = share_fc_weights
+        self.num_classes = num_classes
 
-        self.conv = nn.Conv2d(in_channel, out_channel, kernel_size=(3,3), stride=1, padding=0)
-        print('{} order Descartes Extension'.format(self.order))
-        DE_dim = compute_mode_dim([self.input_size for _ in range(self.order-1)]) + self.input_size
-        self.de_layer = Mode(order_dim=[self.input_size for _ in range(self.order-1)])
+        self.conv = nn.Conv2d(in_channel, out_channel, kernel_size=(3,3), stride=1, padding=1)
+        self.pooling = nn.MaxPool2d((4,4))
+        print('{} order Descartes Extension'.format(order))
+        DE_dim = compute_mode_dim([64 for _ in range(order-1)]) + 64
+        self.de_layer = Mode(order_dim=[64 for _ in range(order-1)])
 
         if self.dropout:
             self.dropout_layer = nn.Dropout(dropout)
         if self.norm:
             self.norm_layer = nn.BatchNorm1d(DE_dim)
-
-        self.fc = nn.Linear(DE_dim, num_classes)
+        if share_fc_weights:
+            self.fc = nn.Linear(DE_dim, num_classes)#公用一个fc权值矩阵
+        else:
+            self.fc = [nn.Linear(DE_dim, num_classes) for _ in range(out_channel)]
+        self.relu = nn.ReLU()
 
     def forward(self, x):
-        conv_out = self.conv(x)
-        
-        origin = torch.flatten(x, 1)
-        out = self.de_layer(origin)
-        out = torch.cat([origin, out], dim=-1)
+        conv_out = self.conv(x) #shape=(batch_size, 16, 32, 32)
+        conv_out = self.relu(conv_out)
+        conv_out = self.pooling(conv_out)
+        out_sum = torch.zeros((conv_out.size()[0], self.num_classes))
+        for i in range(conv_out.size()[1]):
+            de_in = conv_out[:,i,:,:]
+            origin = torch.flatten(de_in, 1)
+            de_out = self.de_layer(origin)
+            de_out = torch.cat([origin, de_out], dim=-1)
 
-        if self.norm:
-            out = self.norm_layer(out)
-        if self.dropout:
-            out = self.dropout_layer(out)
-    
-        out = self.fc(out)
-        # out = self.softmax(out)
-        return out
+            if self.norm:
+                de_out = self.norm_layer(de_out)
+            if self.dropout:
+                de_out = self.dropout_layer(de_out)
+            if self.share_fc_weights:
+                de_out = self.fc(de_out)
+            else:
+                de_out = self.fc[i](de_out)
+            out_sum += de_out
+        
+        return out_sum
 
     def configure_optimizers(self):
         opt = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, momentum=0.9, nesterov=True)
