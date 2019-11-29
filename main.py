@@ -55,6 +55,7 @@ order = cf.getint('para', 'order')
 
 try:
     AUGMENTATION = cf.getboolean('para', 'augmentation')
+    lr_milestones = [cf.getint('lr_schedule', option) for option in cf['lr_schedule']]
     resize=(cf.getint('input_size', 'resize_h'), cf.getint('input_size', 'resize_w'))
     in_channel = cf.getint('input_size', 'channel')
     out_channel = cf.getint('para', 'out_channel')
@@ -143,7 +144,7 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 
 # model = MyModel.wide_resnet(depth=28, width=10, dropout=dropout, learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes,dataset=dataset)
 
-model = MyModel.ModeNN(input_size=input_size[1:], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=0)
+model = MyModel.ModeNN(input_size=input_size[1:], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=0, lr_milestones=lr_milestones)
 summary(model, input_size=input_size[1:], device='cpu')
 
 early_stop_callback = EarlyStopping(

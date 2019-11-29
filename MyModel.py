@@ -185,7 +185,7 @@ class BaseModel(pl.LightningModule):
     
 
 class ModeNN(BaseModel):
-    def __init__(self, input_size, order, num_classes, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(), dropout=0,
+    def __init__(self, input_size, order, num_classes, learning_rate=0.001, weight_decay=0.001, loss=nn.CrossEntropyLoss(), dropout=0, lr_milestones=[60,120,160],
                      norm=None, log_weight=50, dataset={'name':'MNIST', 'dir':'/disk/Dataset/', 'val_split':None, 'batch_size':100, 'transform':None}):
         super(ModeNN, self).__init__(loss=loss, dataset=dataset)
         if len(input_size) > 1:
@@ -212,6 +212,7 @@ class ModeNN(BaseModel):
         self.fc = nn.Linear(DE_dim, num_classes)
         self.softmax = nn.Softmax(dim=1)
         self.learning_rate = learning_rate
+        self.lr_milestones = lr_milestones
         self.weight_decay = weight_decay
 
     def forward(self, x):
@@ -230,8 +231,8 @@ class ModeNN(BaseModel):
 
     def configure_optimizers(self):
         # opt = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        opt = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, momentum=0.9)
-        return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[60, 120, 160], gamma=0.2)]
+        opt = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, momentum=0.9, nesterov=True)
+        return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.lr_milestones, gamma=0.2)]
 
     def validation_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
@@ -271,6 +272,64 @@ class ModeNN(BaseModel):
             }
 
 
+class C_MODENN(BaseModel):
+    def __init__(self, input_size, in_channel, out_channel, order, num_classes, dataset, learning_rate=0.001, weight_decay=0.001,
+                     loss=nn.CrossEntropyLoss(), dropout=0, lr_milestones=[60,120,160], norm=None, log_weight=50):
+        super(C_MODENN,self).__init__(loss, dataset)
+        
+        self.order=order
+        self.dropout = dropout
+        self.norm = norm
+        self.log_weight=log_weight
+        self.learning_rate = learning_rate
+        self.lr_milestones = lr_milestones
+        self.weight_decay = weight_decay
+
+        self.conv = nn.Conv2d(in_channel, out_channel, kernel_size=(3,3), stride=1, padding=0)
+        print('{} order Descartes Extension'.format(self.order))
+        DE_dim = compute_mode_dim([self.input_size for _ in range(self.order-1)]) + self.input_size
+        self.de_layer = Mode(order_dim=[self.input_size for _ in range(self.order-1)])
+
+        if self.dropout:
+            self.dropout_layer = nn.Dropout(dropout)
+        if self.norm:
+            self.norm_layer = nn.BatchNorm1d(DE_dim)
+
+        self.fc = nn.Linear(DE_dim, num_classes)
+
+    def forward(self, x):
+        conv_out = self.conv(x)
+        
+        origin = torch.flatten(x, 1)
+        out = self.de_layer(origin)
+        out = torch.cat([origin, out], dim=-1)
+
+        if self.norm:
+            out = self.norm_layer(out)
+        if self.dropout:
+            out = self.dropout_layer(out)
+    
+        out = self.fc(out)
+        # out = self.softmax(out)
+        return out
+
+    def configure_optimizers(self):
+        opt = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, momentum=0.9, nesterov=True)
+        return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.lr_milestones, gamma=0.2)]
+
+    def validation_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
+        tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
+        log_dict = ({'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()})
+
+        return {
+            'avg_val_loss': avg_loss,
+            'val_acc': avg_acc,
+            'progress_bar': tqdm_dict,
+            'log': log_dict
+            }
+        
     
 class MyConv2D(BaseModel):
     r"""build a multi layer 2D CNN by repeating the same basic 2D CNN layer several times
