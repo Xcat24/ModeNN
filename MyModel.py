@@ -322,8 +322,8 @@ class C_MODENN(BaseModel):
             else:
                 de_out = self.fc[i](de_out)
             out_sum.append(torch.unsqueeze(de_out, dim=0))
-        
-        return torch.sum(torch.cat(out_sum))
+        out = torch.sum(torch.cat(out_sum), dim=0)
+        return out
 
     def configure_optimizers(self):
         opt = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, momentum=0.9, nesterov=True)
