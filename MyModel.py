@@ -306,7 +306,7 @@ class C_MODENN(BaseModel):
         conv_out = self.conv(x) #shape=(batch_size, 16, 32, 32)
         conv_out = self.relu(conv_out)
         conv_out = self.pooling(conv_out)
-        out_sum = torch.zeros((conv_out.size()[0], self.num_classes), device=x.device)
+        out_sum = []
         for i in range(conv_out.size()[1]):
             de_in = conv_out[:,i,:,:]
             origin = torch.flatten(de_in, 1)
@@ -321,9 +321,9 @@ class C_MODENN(BaseModel):
                 de_out = self.fc(de_out)
             else:
                 de_out = self.fc[i](de_out)
-            out_sum += de_out
+            out_sum.append(torch.unsqueeze(de_out, dim=0))
         
-        return out_sum
+        return torch.sum(torch.cat(out_sum))
 
     def configure_optimizers(self):
         opt = torch.optim.SGD(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, momentum=0.9, nesterov=True)
