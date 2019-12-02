@@ -297,16 +297,16 @@ class C_MODENN(BaseModel):
         if self.norm:
             self.norm_layer = nn.BatchNorm1d(DE_dim)
         if share_fc_weights:
-            self.fc = nn.Linear(DE_dim, num_classes)#公用一个fc权值矩阵
+            self.fc = nn.Linear(DE_dim, num_classes)#公用一个fc权值矩阵,导致loss值巨大，最后变为nan
         else:
-            self.fc = [nn.Linear(DE_dim, num_classes) for _ in range(out_channel)]
+            self.fc = nn.ModuleList([nn.Linear(DE_dim, num_classes) for _ in range(out_channel)])
         self.relu = nn.ReLU()
 
     def forward(self, x):
         conv_out = self.conv(x) #shape=(batch_size, 16, 32, 32)
         conv_out = self.relu(conv_out)
         conv_out = self.pooling(conv_out)
-        out_sum = torch.zeros((conv_out.size()[0], self.num_classes))
+        out_sum = torch.zeros((conv_out.size()[0], self.num_classes), device=x.device)
         for i in range(conv_out.size()[1]):
             de_in = conv_out[:,i,:,:]
             origin = torch.flatten(de_in, 1)

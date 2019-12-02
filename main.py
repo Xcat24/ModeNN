@@ -61,6 +61,7 @@ try:
     out_channel = cf.getint('para', 'out_channel')
     layer_num = cf.getint('para', 'layer_num')
     kernel_size = (cf.getint('para', 'kernel_size'), cf.getint('para', 'kernel_size'))
+    share_fc_weights = cf.getboolean('para', 'share_fc_weights')
     dense_node = cf.getint('para', 'dense_node')
     pretrain_model = cf.get('model', 'pretrain_model_path')
 except:
@@ -144,7 +145,7 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 
 # model = MyModel.wide_resnet(depth=28, width=10, dropout=dropout, learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes,dataset=dataset)
 
-model = MyModel.C_MODENN(input_size=input_size[1:], in_channel=in_channel, out_channel=out_channel, order=order, num_classes=num_classes,
+model = MyModel.C_MODENN(input_size=input_size[1:], in_channel=in_channel, out_channel=out_channel, order=order, num_classes=num_classes, share_fc_weights=share_fc_weights,
                          learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=0, lr_milestones=lr_milestones)
 
 # model = MyModel.ModeNN(input_size=input_size[1:], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=0, lr_milestones=lr_milestones)
