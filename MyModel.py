@@ -307,7 +307,7 @@ class C_MODENN(BaseModel):
         conv_out = self.relu(conv_out)
         conv_out = self.pooling(conv_out)
         out_sum = []
-        for i in range(conv_out.size()[1]):
+        for i in range(conv_out.size()[1]): #能否优化？不用for循环？
             de_in = conv_out[:,i,:,:]
             origin = torch.flatten(de_in, 1)
             de_out = self.de_layer(origin)
