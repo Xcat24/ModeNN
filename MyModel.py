@@ -218,16 +218,22 @@ class ModeNN(BaseModel):
     def forward(self, x):
         origin = torch.flatten(x, 1)
         out = self.de_layer(origin)
-        out = torch.cat([origin, out], dim=-1)
+        de_out = torch.cat([origin, out], dim=-1)
 
         if self.norm:
-            out = self.norm_layer(out)
+            de_out = self.norm_layer(de_out)
         if self.dropout:
-            out = self.dropout_layer(out)
+            de_out = self.dropout_layer(de_out)
     
-        out = self.fc(out)
+        out = self.fc(de_out)
         # out = self.softmax(out)
         return out
+
+    def de_forward(self, x):
+        origin = torch.flatten(x, 1)
+        out = self.de_layer(origin)
+        de_out = torch.cat([origin, out], dim=-1)
+        return de_out
 
     def configure_optimizers(self):
         # opt = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
@@ -270,6 +276,37 @@ class ModeNN(BaseModel):
             'progress_bar': tqdm_dict,
             'log': log_dict
             }
+
+    def test_step(self, batch, batch_nb):
+        x, y = batch
+        de_out = self.de_forward(x)
+        out = self.forward(x)
+        loss = self.loss(out, y)
+
+        # calculate acc
+        labels_hat = torch.argmax(out, dim=1)
+        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
+
+        # return whatever you need for the collation function validation_end
+        output = {
+            'test_loss': loss,
+            'test_acc': torch.tensor(test_acc), # everything must be a tensor
+            'de_out': de_out,
+            'label': torch.tensor(y)
+        }
+
+        return output
+
+    def test_end(self, outputs):
+        whole_test_data = torch.cat([x['de_out'] for x in outputs], dim=0)
+        whole_test_label = torch.cat([x['label'] for x in outputs], dim=0)
+        #logger
+        if self.logger:
+            self.logger.experiment.add_embedding(whole_test_data, whole_test_label)
+
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
+        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
 
 
 class C_MODENN(BaseModel):
