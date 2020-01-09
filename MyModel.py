@@ -13,6 +13,9 @@ from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, 
 from sota_module import resnet, Wide_ResNet
 from matplotlib import pyplot as plt
 
+#TODO
+#各网络结构添加 add_model_specific_args 模块
+
 class BaseModel(pl.LightningModule):
     def __init__(self, loss, dataset, *args, **kwargs):
         super(BaseModel, self).__init__(*args, **kwargs)

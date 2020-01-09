@@ -1,6 +1,8 @@
 import math
 import time
 import os
+import random
+import argparse
 import configparser
 import numpy as np
 import torch
@@ -104,6 +106,8 @@ elif dataset_name == 'NUMPY':
     val_transform = train_transform
 
 dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_size':batch_size, 'train_transform':train_transform, 'val_transform':val_transform}
+
+#TODO 利用MyModel.__dict__[hparams.arch]解决调用哪个模型的问题
 
 # model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=in_channel, out_channel=out_channel, layer_num=layer_num,
 #                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
