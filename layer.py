@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from torch import nn
 
 
@@ -57,3 +58,83 @@ class MaskDE(nn.Module):
             return out
         else:
             raise ValueError("the dimension of input tensor is expected 1 or 2")
+
+
+class SLConv(nn.Module):
+    def __init__(self, in_channel, stride=1, padding=1):
+        super(SLConv, self).__init__()
+        self.stride = stride
+        self.padding = padding
+        self.in_channel = in_channel
+        self.sobel_weight_h = torch.tensor([[-1., -2. , -1.], [0., 0., 0.], [1., 2. , 1.]], requires_grad=False)
+        self.sobel_weight_w = self.sobel_weight_h.t()
+        self.sobel_weight_h = self.sobel_weight_h.expand(self.in_channel, 3, 3)
+        self.sobel_weight_w = self.sobel_weight_w.expand(self.in_channel, 3, 3)
+        self.laplace_weight = torch.tensor([[0., 1., 0.], [1., -4., 1.],[0. ,1., 0.]], requires_grad=False).expand(self.in_channel, 3, 3)
+        self.kernel = torch.stack([self.sobel_weight_h, self.sobel_weight_w, self.laplace_weight], dim=0)
+                
+    def forward(self, x):
+        out = F.conv2d(x, self.kernel.to(x.device), stride=self.stride, padding=self.padding)
+        return out
+
+class Pretrain_5MODE(nn.Module):
+    def __init__(self, num_classes, bins_size=9, bins_num=35):
+        super(Pretrain_5MODE, self).__init__()
+        self.bins_size = bins_size
+        self.bins_num = bins_num
+        self.de2 = DescartesExtension(order=2)
+        self.de3 = DescartesExtension(order=3)
+        self.de4 = DescartesExtension(order=4)
+        self.de5 = DescartesExtension(order=5)
+
+    def forward(self, x):
+        x = torch.flatten(x, 1)
+        temp = []
+        for i in range(self.bins_num):
+            origin = x[:,i*self.bins_size:(i+1)*self.bins_size]
+            de2_out = self.de2(origin)
+            de3_out = self.de3(origin)
+            de4_out = self.de4(origin)
+            de5_out = self.de5(origin)
+            temp.append(torch.cat([origin, de2_out, de3_out, de4_out, de5_out], dim=-1))
+
+        out = torch.cat(temp, dim=-1)
+      
+        return out
+
+class Mode(nn.Module):
+    '''
+    对数据进行多阶笛卡尔扩张，用order_dim数组来控制扩张的阶数以及每个阶数扩张的维度，order_dim[i]表示用于阶数为i+2的升阶操作的输入维度
+    当对应阶数扩张的维度小于总维度时，则是按输入维度从前往后截取（因此，输入的维度最好为按重要顺序排序的）。
+    输入：(N, feature_dim)
+    输出：(N, MODE_dim) 其中MODE_dim为各阶扩张结果的拼接
+    '''
+    def __init__(self, order_dim=[300, 50, 20, 10]):
+        super(Mode, self).__init__()
+        self.order_dim = order_dim
+        self.de = [DescartesExtension(order=i+2) for i in range(len(order_dim))]
+
+    def forward(self, x):
+        de_out = [self.de[_](x[:,:self.order_dim[_]]) for _ in range(len(self.de))]
+        return torch.cat(de_out, dim=-1)
+
+class MaskLayer(nn.Module):
+    '''
+    根据mask矩阵（坐标索引，如torch.topk()[1]得到的矩阵），过滤输入，只通过mask中值为True的类型
+    输出：（N，feature）
+    '''
+    def __init__(self,mask):
+        super(MaskLayer, self).__init__()
+        self.mask = mask
+    
+    def forward(self, x):
+        return torch.index_select(x, 1, self.mask.to(x.device))
+
+
+if __name__ == "__main__":
+    import torchvision
+    from myutils.utils import Pretrain_Select
+    x = torchvision.datasets.MNIST(root='/disk/Dataset/', train=True, transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor(), 
+                                                                                                                Pretrain_Select('/disk/Log/torch/model/NoHiddenBase_MNIST/_ckpt_epoch_69.ckpt')]))
+    m = Mode()
+    print(m(x.__getitem__(1)[0]).shape)

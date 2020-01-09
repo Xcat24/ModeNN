@@ -8,6 +8,22 @@ from matplotlib import pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 
+class NumpyDataset(Dataset):
+    def __init__(self, root_dir, train=False):
+        if train:
+            self.data = torch.tensor(np.load(os.path.join(root_dir,'train_data.npy')), dtype=torch.float32)
+            self.labels = torch.tensor(np.load(os.path.join(root_dir, 'train_label.npy')))
+        else:
+            self.data = torch.tensor(np.load(os.path.join(root_dir,'val_data.npy')), dtype=torch.float32)
+            self.labels = torch.tensor(np.load(os.path.join(root_dir, 'val_label.npy')))
+    
+    def __len__(self):
+        return len(self.labels)
+    
+    def __getitem__(self, idx):
+        x = self.data[idx]
+        label = self.labels[idx]
+        return x, label
 
 class ORLdataset(Dataset):
     def __init__(self, train=True, root_dir='/disk/Dataset/ORL/', transform=None, val_split=0.1):
@@ -43,7 +59,7 @@ class ORLdataset(Dataset):
             image = self.transform(image)
 
         labels = img_dir
-        sample = {'image':image, 'labels':labels}
+        sample = image, labels
 
         return sample
 
