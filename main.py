@@ -23,17 +23,13 @@ AUGMENTATION = False
 torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.enabled = True
 
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument('--conf', dest='conf_path', type=str, help='path to config file')
+args = parser.parse_args()
 #================================== Read Setting ======================================
 cf = configparser.ConfigParser()
-# cf.read('config/XOR.conf')
-cf.read('config/iris.conf')
-# cf.read('config/circle_square.conf')
-# cf.read('config/TC.conf')
-# cf.read('config/mnist.conf')
-# cf.read('config/mnist_bestcnn.conf')
-# cf.read('./config/orl.conf')
-# cf.read('./config/cifar10.conf')
-# cf.read('./config/mnist_pretrain_5modenn.conf')
+cf.read(args.conf_path)
+
 #Dataset Select
 dataset_name = cf.get('dataset', 'dataset')
 data_dir = cf.get('dataset', 'data_dir')
