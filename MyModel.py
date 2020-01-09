@@ -420,6 +420,7 @@ class MyConv2D(BaseModel):
         self.output_debug = output_debug
         self.initconv = nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
         self.conv = nn.Conv2d(out_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
+
         if self.pooling == 'Max':
             self.maxpool = nn.MaxPool2d(kernel_size=pool_shape)
         if self.pooling == 'Avg':

@@ -76,6 +76,7 @@ try:
     gpus = cf.getint('other', 'gpus')
 except ValueError as e:
     gpus = None
+
 #================================= Read Setting End ===================================
 
 
@@ -196,6 +197,7 @@ trainer.test()
 
 
     
+
 
 
 
