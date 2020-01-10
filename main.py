@@ -7,102 +7,24 @@ import configparser
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.backends.cudnn as cudnn
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
-import MyModel
+import mymodels
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.logging import TestTubeLogger
 from myutils.utils import pick_edge, Pretrain_Select
 
-AUGMENTATION = False
 
 # Device configuration
 torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.enabled = True
 
-parser = argparse.ArgumentParser(add_help=False)
-parser.add_argument('--conf', dest='conf_path', type=str, help='path to config file')
-args = parser.parse_args()
-#================================== Read Setting ======================================
-cf = configparser.ConfigParser()
-cf.read(args.conf_path)
-
-#Dataset Select
-dataset_name = cf.get('dataset', 'dataset')
-data_dir = cf.get('dataset', 'data_dir')
-
-#model
-model_name = cf.get('model', 'model_name')
-saved_path = cf.get('model', 'saved_path')
-    
-
-#parameter setting
-input_size = tuple([cf.getint('input_size', option) for option in cf['input_size']])
-num_classes = cf.getint('para', 'num_classes')
-num_epochs = cf.getint('para', 'num_epochs')
-batch_size = cf.getint('input_size', 'batch_size')
-learning_rate = cf.getfloat('para', 'learning_rate')
-weight_decay = cf.getfloat('para', 'weight_decay')
-val_split = cf.getfloat('para', 'val_split')
-norm = cf.getboolean('para', 'norm')
-dropout = cf.getfloat('para','dropout')
-order = cf.getint('para', 'order')
-
-try:
-    AUGMENTATION = cf.getboolean('para', 'augmentation')
-    lr_milestones = [cf.getint('lr_schedule', option) for option in cf['lr_schedule']]
-    resize=(cf.getint('input_size', 'resize_h'), cf.getint('input_size', 'resize_w'))
-    in_channel = cf.getint('input_size', 'channel')
-    out_channel = cf.getint('para', 'out_channel')
-    layer_num = cf.getint('para', 'layer_num')
-    kernel_size = (cf.getint('para', 'kernel_size'), cf.getint('para', 'kernel_size'))
-    share_fc_weights = cf.getboolean('para', 'share_fc_weights')
-    dense_node = cf.getint('para', 'dense_node')
-    pretrain_model = cf.get('model', 'pretrain_model_path')
-except:
-    print('Does not contain CNN or pretrained model!')
-
-
-#others
-output_per = cf.getint('other', 'output_per')
-log_dir = cf.get('other', 'log_dir')
-tb_dir = cf.get('other', 'tb_dir')
-patience = cf.getint('other', 'patience')
-log_gpu = cf.getboolean('other', 'log_gpu')
-try:
-    gpus = cf.getint('other', 'gpus')
-except ValueError as e:
-    gpus = None
 
 #================================= Read Setting End ===================================
-
-
-#Dataset setting
-if dataset_name == 'MNIST':
-    train_transform = transforms.ToTensor()
-    val_transform = transforms.ToTensor()
-elif dataset_name == 'CIFAR10':
-    val_transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)])
-    if AUGMENTATION:
-        train_transform = transforms.Compose([
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomCrop(32, padding=4),
-            val_transform
-        ])
-    else:
-        train_transform = val_transform
-    # transform = transforms.Compose([pick_edge(), transforms.ToTensor()])
-elif dataset_name == 'ORL':
-    train_transform = transforms.Compose([transforms.Resize(resize), transforms.ToTensor()])
-    val_transform = train_transform
-elif dataset_name == 'NUMPY':
-    train_transform = None
-    val_transform = train_transform
-
-dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_size':batch_size, 'train_transform':train_transform, 'val_transform':val_transform}
 
 #TODO 利用MyModel.__dict__[hparams.arch]解决调用哪个模型的问题
 
@@ -148,55 +70,115 @@ dataset = {'name':dataset_name, 'dir':data_dir, 'val_split':val_split, 'batch_si
 
 # model = MyModel.C_MODENN(input_size=input_size[1:], in_channel=in_channel, out_channel=out_channel, order=order, num_classes=num_classes, share_fc_weights=share_fc_weights,
 #                          norm=norm, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=0, lr_milestones=lr_milestones)
-
-model = MyModel.ModeNN(input_size=input_size[1:], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=0)#, lr_milestones=lr_milestones)
-summary(model, input_size=input_size[1:], device='cpu')
-
-early_stop_callback = EarlyStopping(
-    monitor='val_acc',
-    min_delta=0.00,
-    patience=patience,
-    verbose=True,
-    mode='auto'
-)
-
-checkpoint_callback = ModelCheckpoint(
-    filepath=saved_path,
-    save_best_only=True,
-    verbose=True,
-    monitor='val_acc',
-    mode='max',
-    prefix=''
-)
-
-# tb_logger = SummaryWriter(log_dir=log_dir)
-tb_logger = TestTubeLogger(
-    save_dir=log_dir,
-    name=tb_dir,
-    debug=False,
-    create_git_tag=False)
-    
-trainer = Trainer(
-    min_nb_epochs=1,
-    max_nb_epochs=num_epochs,
-    log_gpu_memory=log_gpu,
-    gpus=gpus,
-    fast_dev_run=False, #activate callbacks, everything but only with 1 training and 1 validation batch
-    gradient_clip_val=0,  #this will clip the gradient norm computed over all model parameters together
-    track_grad_norm=-1,  #Looking at grad norms
-    print_nan_grads=True,
-    checkpoint_callback=checkpoint_callback,
-    logger=tb_logger,
-    row_log_interval=80,
-    log_save_interval=80,
-    early_stop_callback=early_stop_callback)
+#model = MyModel.ModeNN(input_size=input_size[1:], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=0)#, lr_milestones=lr_milestones)
 
 
-trainer.fit(model)
-trainer.test()
+
+def get_args(arch):
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    # parent_parser.add_argument('--arch', default='ModeNN', type=str,
+    #                             help='the network struture')
+    parent_parser.add_argument('--is-early-stop', action='store_true',
+                                help='whether to use early stop callback')
+    parent_parser.add_argument('--patience', default=50, type=int, 
+                                help='the patience set in early stop callback')
+    parent_parser.add_argument('--is-tensorboard', action='store_true',
+                                help='whether to use tensorboard')
+    parent_parser.add_argument('--log-dir', type=str,
+                               help='path to save log')
+    parent_parser.add_argument('--tb-dir', type=str,
+                               help='path to save tensorboard')
+    parent_parser.add_argument('--is-checkpoint', action='store_true',
+                                help='whether to use check point callback')
+    parent_parser.add_argument('--saved-path', metavar='DIR', type=str,
+                               help='path to save model')
+    parent_parser.add_argument('--dataset', type=str,
+                               help='dataset to use')
+    parent_parser.add_argument('--data-dir', type=str,
+                               help='path to dataset')
+    parent_parser.add_argument('--save-path', default=".", type=str,
+                               help='path to save output')
+    parent_parser.add_argument('--gpus', type=int, default=1,
+                               help='how many gpus')
+    parent_parser.add_argument('--log-gpu', action='store_true',
+                               help='whether to log gpu usage')
+    parent_parser.add_argument('--distributed-backend', type=str, default='dp', choices=('dp', 'ddp', 'ddp2'),
+                               help='supports three options dp, ddp, ddp2')
+    parent_parser.add_argument('--use-16bit', dest='use-16bit', action='store_true',
+                               help='if true uses 16 bit precision')
+    parent_parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
+                               help='evaluate model on validation set')
+    parent_parser.add_argument('-t', '--test', dest='test', action='store_true',
+                               help='test model on test set')
+
+    parser = mymodels.__dict__[arch].add_model_specific_args(parent_parser)
+    return parser.parse_args()
 
 
-    
+def main(hparams):
+    model = mymodels.__dict__[hparams.arch](hparams, nn.CrossEntropyLoss())
+    summary(model, input_size=(hparams.input_size,), device='cpu')
+    if hparams.seed is not None:
+        random.seed(hparams.seed)
+        torch.manual_seed(hparams.seed)
+        cudnn.deterministic = True
+    if hparams.is_early_stop:
+        early_stop_callback = EarlyStopping(
+            monitor='val_acc',
+            min_delta=0.00,
+            patience=hparams.patience,
+            verbose=True,
+            mode='auto'
+        )
+    else:
+        early_stop_callback = None
+
+    if hparams.is_checkpoint:
+        checkpoint_callback = ModelCheckpoint(
+            filepath=hparams.saved_path,
+            save_best_only=True,
+            verbose=True,
+            monitor='val_acc',
+            mode='max',
+            prefix=''
+        )
+    else:
+        checkpoint_callback = None
+
+    if hparams.is_tensorboard:
+        tb_logger = TestTubeLogger(
+            save_dir=hparams.log_dir,
+            name=hparams.tb_dir,
+            debug=False,
+            create_git_tag=False)
+    else:
+        tb_logger = None
+        
+    trainer = Trainer(
+        min_nb_epochs=1,
+        max_nb_epochs=hparams.num_epochs,
+        log_gpu_memory=hparams.log_gpu,
+        gpus=hparams.gpus,
+        fast_dev_run=False, #activate callbacks, everything but only with 1 training and 1 validation batch
+        gradient_clip_val=0,  #this will clip the gradient norm computed over all model parameters together
+        track_grad_norm=-1,  #Looking at grad norms
+        print_nan_grads=True,
+        checkpoint_callback=checkpoint_callback,
+        # logger=tb_logger,
+        row_log_interval=80,
+        log_save_interval=80,
+        early_stop_callback=early_stop_callback)
+
+    if hparams.evaluate:
+        trainer.run_evaluation()
+    else:
+        trainer.fit(model)
+    if hparams.test:
+        trainer.test()
+
+
+if __name__ == '__main__':
+    main(get_args('ModeNN'))    
 
 
 

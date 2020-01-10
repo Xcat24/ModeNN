@@ -17,10 +17,9 @@ from matplotlib import pyplot as plt
 #各网络结构添加 add_model_specific_args 模块
 
 class BaseModel(pl.LightningModule):
-    def __init__(self, loss, dataset, *args, **kwargs):
-        super(BaseModel, self).__init__(*args, **kwargs)
-        self.loss = loss
-        self.dataset = dataset
+    def __init__(self, hparams):
+        super(BaseModel, self).__init__()
+        self.hparams = hparams
 
     def training_step(self, batch, batch_nb):
         x, y = batch
