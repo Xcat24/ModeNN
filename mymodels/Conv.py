@@ -106,6 +106,7 @@ class MyConv2D(BaseModel):
         out = self.convs(out)
         out = F.relu(self.bn1(out))
         out = F.avg_pool2d(out, self.hparams.pool_shape)
+        print(out.shape)
         out = out.view(out.size(0), -1)
         out = self.fc(out)
 
