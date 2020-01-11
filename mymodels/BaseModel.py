@@ -45,17 +45,6 @@ class BaseModel(pl.LightningModule):
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
         tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
         log_dict = {'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()}
-       
-        #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        weight_name=layer_names[i]+'_'+str(w.shape)+'_weight'
-                        self.logger.experiment.add_histogram(weight_name, w)
 
         return {
             'avg_val_loss': avg_loss,

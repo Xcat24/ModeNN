@@ -26,18 +26,9 @@ torch.backends.cudnn.enabled = True
 
 #================================= Read Setting End ===================================
 
-#TODO 利用MyModel.__dict__[hparams.arch]解决调用哪个模型的问题
-
-# model = MyModel.MyConv2D(input_size=input_size[2:], in_channel=in_channel, out_channel=out_channel, layer_num=layer_num,
-#                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
-#                          dropout=dropout, dataset=dataset, output_debug=True)
-
 # model = MyModel.MyCNN_MODENN(input_size=input_size[2:], in_channel=in_channel, out_channel=out_channel, kernel_size=kernel_size, num_classes=num_classes, pool_shape=(2,2),
 #                             order=order, padding=1, norm=norm, dropout=dropout, dataset=dataset, learning_rate=learning_rate, weight_decay=weight_decay, output_debug=False)
 
-# model = MyModel.CIFARConv2D(input_size=input_size[2:], in_channel=in_channel, layer_num=layer_num, pooling='Max',
-#                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, padding=1, norm=norm,
-#                          dropout=dropout, dataset=dataset)
 
 # model = MyModel.CIFARConv_MODENN(input_size=input_size[2:], in_channel=in_channel, layer_num=layer_num, pooling='Max',
 #                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, order=order, padding=1, norm=norm,
@@ -60,8 +51,6 @@ torch.backends.cudnn.enabled = True
 #                      dropout=None, learning_rate=learning_rate,weight_decay=weight_decay, loss=nn.CrossEntropyLoss(),
 #                      dataset=dataset)
 
-# model = MyModel.MNISTConv2D(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, padding=(0,0), dataset=dataset)
-
 # model = MyModel.resnext29(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, dataset=dataset)
 
 # model = MyModel.resnet18(num_classes=num_classes, dataset=dataset)
@@ -70,7 +59,7 @@ torch.backends.cudnn.enabled = True
 
 # model = MyModel.C_MODENN(input_size=input_size[1:], in_channel=in_channel, out_channel=out_channel, order=order, num_classes=num_classes, share_fc_weights=share_fc_weights,
 #                          norm=norm, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=0, lr_milestones=lr_milestones)
-#model = MyModel.ModeNN(input_size=input_size[1:], order=order, num_classes=num_classes, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=0)#, lr_milestones=lr_milestones)
+
 
 
 

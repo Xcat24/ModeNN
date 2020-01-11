@@ -56,7 +56,7 @@ class ModeNN(BaseModel):
         weight_dict = {}
        
         #log weight to tensorboard
-        # 在大维度情况下，会产生过多的线程，导致崩溃（如CIFAR10数据）
+        #TODO 在大维度情况下，会产生过多的线程，导致崩溃（如CIFAR10数据）
         if self.hparams.log_weight:
             mode_para = self.fc.weight
             poly_item = find_polyitem(dim=self.hparams.input_size, order=self.hparams.order) 
@@ -77,7 +77,17 @@ class ModeNN(BaseModel):
                 plt.xticks(x, poly_item, rotation=-45, fontsize=6)
                 plt.legend()
                 self.logger.experiment.add_figure('epoch_{}'.format(self.current_epoch), fig, self.current_epoch)
-
+        #logger
+        if self.logger:
+            layer_names = list(self._modules)
+            for i in range(len(layer_names)):
+                mod_para = list(self._modules[layer_names[i]].parameters())
+                if mod_para:
+                    for j in range(len(mod_para)):
+                        w = mod_para[j].clone().detach()
+                        weight_name=layer_names[i]+'_'+str(w.shape)+'_weight'
+                        self.logger.experiment.add_histogram(weight_name, w)
+        
         return {
             'avg_val_loss': avg_loss,
             'val_acc': avg_acc,
