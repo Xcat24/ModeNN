@@ -25,7 +25,7 @@ class double_conv_basic(nn.Module):
     r"""参考Wide-ResNet中的 wide_basic编写，去掉了其中的short-cut部分
     """
     def __init__(self, in_channel, out_channels, dropout_rate, kernel_size=3, stride=1):
-        super(conv_basic, self).__init__()
+        super(double_conv_basic, self).__init__()
         self.bn1 = nn.BatchNorm2d(in_channel)
         self.conv1 = nn.Conv2d(in_channel, out_channels, kernel_size=kernel_size, padding=1, bias=True)
         self.dropout = nn.Dropout(p=dropout_rate)
@@ -41,7 +41,7 @@ class single_conv_basic(nn.Module):
     r"""参考Wide-ResNet中的 wide_basic编写，去掉了其中的short-cut部分，以及dropout后半部分的conv，并在前半部分的conv中增加了stride
     """
     def __init__(self, in_channel, out_channels, dropout_rate, kernel_size=3, stride=1):
-        super(conv_basic, self).__init__()
+        super(single_conv_basic, self).__init__()
         self.bn1 = nn.BatchNorm2d(in_channel)
         self.conv1 = nn.Conv2d(in_channel, out_channels, kernel_size=kernel_size, stride=stride, padding=1, bias=True)
         self.dropout = nn.Dropout(p=dropout_rate)
@@ -75,17 +75,17 @@ class MyConv2D(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
         super(MyConv2D, self).__init__(hparams=hparams, loss=loss)
 
-        self.initconv = conv3x3(self.hparams.in_channel, self.hparams.out_channels, stride=self.hparams.stride)
+        self.initconv = conv3x3(self.hparams.in_channel, self.hparams.out_channels[0], stride=self.hparams.stride)
         self.convs = self._make_layer()
 
         #TODO
         conv_outshape = self.hparams.conv_outshape
-        self.bn1 = nn.BatchNorm2d(self.hparams.dense_nodes[0], momentum=0.9)
+        self.bn1 = nn.BatchNorm2d(self.hparams.out_channels[-1], momentum=0.9)
         self.fc = self._make_dense()
 
-    def _make_layer():
+    def _make_layer(self):
         layers = []
-        for _ in range(1, self.hparams.basic_num):
+        for _ in range(1, len(self.hparams.out_channels)):
             if self.hparams.basic_mode == 'single':
                 layers.append(single_conv_basic(self.hparams.out_channels[_-1], self.hparams.out_channels[_], self.hparams.dropout, 3, self.hparams.stride))
             elif self.hparams.basic_mode == 'double':
@@ -93,10 +93,10 @@ class MyConv2D(BaseModel):
 
         return nn.Sequential(*layers)
 
-    def _make_dense():
+    def _make_dense(self):
         layers = [nn.Linear(self.hparams.conv_outshape, self.hparams.dense_nodes[0])]
         if len(self.hparams.dense_nodes) > 1:
-            for _ in range(1, len(self.hparams.dense_num)):
+            for _ in range(1, len(self.hparams.dense_nodes)):
                 layers.append(nn.Linear(self.hparams.dense_nodes[_-1],self.hparams.dense_nodes[_]))
         layers.append(nn.Linear(self.hparams.dense_nodes[-1], self.hparams.num_classes))
         return nn.Sequential(*layers)
@@ -106,7 +106,7 @@ class MyConv2D(BaseModel):
         out = self.convs(out)
         out = F.relu(self.bn1(out))
         out = F.avg_pool2d(out, self.hparams.pool_shape)
-        print(out.shape)
+        # print(out.shape)
         out = out.view(out.size(0), -1)
         out = self.fc(out)
 
@@ -131,7 +131,7 @@ class MyConv2D(BaseModel):
         parser = argparse.ArgumentParser(parents=[parent_parser])
         parser.add_argument('--num-epochs', default=90, type=int, metavar='N',
                             help='number of total epochs to run')
-        parser.add_argument('--arch', default='Conv', type=str, 
+        parser.add_argument('--arch', default='MyConv2D', type=str, 
                             help='networ architecture')
         parser.add_argument('--seed', type=int, default=None,
                             help='seed for initializing training. ')
@@ -180,6 +180,8 @@ class MyConv2D(BaseModel):
                                 help='numbers of dense layers nodels, return as list')
         parser.add_argument('--basic-mode', default='single', type=str,
                                 help='conv basic to use')
-        parser.add_argument('--basic-num', default=1, type=int,
-                                help='how many conv basics to use')
+        parser.add_argument('--pool-shape', default=2, type=int,
+                                help='average pooling shape')
+        parser.add_argument('--conv-outshape', default=1, type=int,
+                                help='dimentions of conv layer output data')
         return parser

@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import argparse
 import torchvision
@@ -106,11 +107,11 @@ class BaseModel(pl.LightningModule):
                                         transform=transforms.Compose([transforms.Resize(resize), transforms.ToTensor()]),
                                         val_split=self.dataset['val_split'])
         elif self.hparams.dataset == 'CIFAR10':
-            if hparams.augmentation:
+            if self.hparams.augmentation:
                 train_transform = transforms.Compose([
                     transforms.RandomHorizontalFlip(),
                     transforms.RandomCrop(32, padding=4),
-                    val_transform
+                    transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)])
                 ])
             else:
                 train_transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)])

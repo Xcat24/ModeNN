@@ -65,8 +65,6 @@ torch.backends.cudnn.enabled = True
 
 def get_args(arch):
     parent_parser = argparse.ArgumentParser(add_help=False)
-    # parent_parser.add_argument('--arch', default='ModeNN', type=str,
-    #                             help='the network struture')
     parent_parser.add_argument('--is-early-stop', action='store_true',
                                 help='whether to use early stop callback')
     parent_parser.add_argument('--patience', default=50, type=int, 
@@ -106,7 +104,7 @@ def get_args(arch):
 
 def main(hparams):
     model = mymodels.__dict__[hparams.arch](hparams, nn.CrossEntropyLoss())
-    summary(model, input_size=(hparams.input_size,), device='cpu')
+    summary(model, input_size=tuple(hparams.input_size), device='cpu')
     if hparams.seed is not None:
         random.seed(hparams.seed)
         torch.manual_seed(hparams.seed)
@@ -151,11 +149,11 @@ def main(hparams):
         fast_dev_run=False, #activate callbacks, everything but only with 1 training and 1 validation batch
         gradient_clip_val=0,  #this will clip the gradient norm computed over all model parameters together
         track_grad_norm=-1,  #Looking at grad norms
-        print_nan_grads=True,
+        # print_nan_grads=True,
         checkpoint_callback=checkpoint_callback,
-        # logger=tb_logger,
-        row_log_interval=80,
-        log_save_interval=80,
+        logger=tb_logger,
+        # row_log_interval=80,
+        # log_save_interval=80,
         early_stop_callback=early_stop_callback)
 
     if hparams.evaluate:
@@ -167,7 +165,7 @@ def main(hparams):
 
 
 if __name__ == '__main__':
-    main(get_args('ModeNN'))    
+    main(get_args('MyConv2D'))    
 
 
 

@@ -159,8 +159,8 @@ class ModeNN(BaseModel):
                             help='use pre-trained model')
         parser.add_argument('--num-classes', default=None, type=int,
                                 help='number of the total classes')
-        parser.add_argument('--input-size', default=784, type=int,
-                                help='dims of input data')
+        parser.add_argument('--input-size', nargs='+', type=int,
+                                help='dims of input data, return list')
         parser.add_argument('--order', default=2, type=int,
                                 help='order of Mode')
         parser.add_argument('--augmentation', action='store_true',
