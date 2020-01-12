@@ -128,7 +128,6 @@ class MyConv2D(BaseModel):
     
     def test_step(self, batch, batch_nb):
         x, y = batch
-        de_out = self.de_forward(x)
         out = self.forward(x)
         loss = self.loss(out, y)
 
@@ -140,14 +139,14 @@ class MyConv2D(BaseModel):
         output = {
             'test_loss': loss,
             'test_acc': torch.tensor(test_acc), # everything must be a tensor
-            'de_out': de_out,
-            'label': torch.tensor(y)
+            'data': x,
+            'label': y
         }
 
         return output
 
     def test_end(self, outputs):
-        whole_test_data = torch.cat([x['de_out'] for x in outputs], dim=0)
+        whole_test_data = torch.cat([x['data'] for x in outputs], dim=0)
         whole_test_label = torch.cat([x['label'] for x in outputs], dim=0)
         #logger
         if self.logger:
