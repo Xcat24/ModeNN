@@ -125,6 +125,37 @@ class MyConv2D(BaseModel):
                 return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
             else:
                 return [opt]
+    
+    def test_step(self, batch, batch_nb):
+        x, y = batch
+        de_out = self.de_forward(x)
+        out = self.forward(x)
+        loss = self.loss(out, y)
+
+        # calculate acc
+        labels_hat = torch.argmax(out, dim=1)
+        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
+
+        # return whatever you need for the collation function validation_end
+        output = {
+            'test_loss': loss,
+            'test_acc': torch.tensor(test_acc), # everything must be a tensor
+            'de_out': de_out,
+            'label': torch.tensor(y)
+        }
+
+        return output
+
+    def test_end(self, outputs):
+        whole_test_data = torch.cat([x['de_out'] for x in outputs], dim=0)
+        whole_test_label = torch.cat([x['label'] for x in outputs], dim=0)
+        #logger
+        if self.logger:
+            self.logger.experiment.add_embedding(whole_test_data, whole_test_label)
+
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
+        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
 
     @staticmethod
     def add_model_specific_args(parent_parser):  # pragma: no cover
