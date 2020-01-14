@@ -75,13 +75,14 @@ class MyConv2D(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
         super(MyConv2D, self).__init__(hparams=hparams, loss=loss)
 
-        self.initconv = conv3x3(self.hparams.in_channel, self.hparams.out_channels[0], stride=self.hparams.stride)
+        self.initconv = conv3x3(self.hparams.in_channel, self.hparams.out_channels[0], stride=1)
         self.convs = self._make_layer()
 
         #TODO
         conv_outshape = self.hparams.conv_outshape
         self.bn1 = nn.BatchNorm2d(self.hparams.out_channels[-1], momentum=0.9)
         self.fc = self._make_dense()
+        self.out_layer = nn.Linear(self.hparams.dense_nodes[-1], self.hparams.num_classes)
 
     def _make_layer(self):
         layers = []
@@ -98,7 +99,7 @@ class MyConv2D(BaseModel):
         if len(self.hparams.dense_nodes) > 1:
             for _ in range(1, len(self.hparams.dense_nodes)):
                 layers.append(nn.Linear(self.hparams.dense_nodes[_-1],self.hparams.dense_nodes[_]))
-        layers.append(nn.Linear(self.hparams.dense_nodes[-1], self.hparams.num_classes))
+        
         return nn.Sequential(*layers)
 
     def forward(self, x):
@@ -109,7 +110,27 @@ class MyConv2D(BaseModel):
         # print(out.shape)
         out = out.view(out.size(0), -1)
         out = self.fc(out)
+        out = self.out_layer(out)
 
+        return out
+    
+    def conv_forward(self, x):
+        out = self.initconv(x)
+        out = self.convs(out)
+        out = F.relu(self.bn1(out))
+        out = F.avg_pool2d(out, self.hparams.pool_shape)
+        # print(out.shape)
+        out = out.view(out.size(0), -1)
+        return out
+    
+    def dense_forward(self, x):
+        out = self.initconv(x)
+        out = self.convs(out)
+        out = F.relu(self.bn1(out))
+        out = F.avg_pool2d(out, self.hparams.pool_shape)
+        # print(out.shape)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
         return out
 
     def configure_optimizers(self):
@@ -129,6 +150,8 @@ class MyConv2D(BaseModel):
     def test_step(self, batch, batch_nb):
         x, y = batch
         out = self.forward(x)
+        conv_out = self.conv_forward(x)
+        dense_out = self.dense_forward(x)
         loss = self.loss(out, y)
 
         # calculate acc
@@ -139,6 +162,8 @@ class MyConv2D(BaseModel):
         output = {
             'test_loss': loss,
             'test_acc': torch.tensor(test_acc), # everything must be a tensor
+            'conv_out': conv_out,
+            'dense_out': dense_out,
             'data': x,
             'label': y
         }
@@ -146,11 +171,15 @@ class MyConv2D(BaseModel):
         return output
 
     def test_end(self, outputs):
-        whole_test_data = torch.cat([x['data'] for x in outputs], dim=0)
+        whole_test_data = torch.cat([x['data'].reshape((-1,3072)) for x in outputs], dim=0)
         whole_test_label = torch.cat([x['label'] for x in outputs], dim=0)
+        whole_conv_out = torch.cat([x['conv_out'] for x in outputs], dim=0)
+        whole_dense_out = torch.cat([x['dense_out'] for x in outputs], dim=0)
         #logger
         if self.logger:
-            self.logger.experiment.add_embedding(whole_test_data, whole_test_label)
+            self.logger.experiment.add_embedding(whole_test_data, whole_test_label, tag='raw data')
+            self.logger.experiment.add_embedding(whole_conv_out, whole_test_label, tag='CNN-conv-out data')
+            self.logger.experiment.add_embedding(whole_dense_out, whole_test_label, tag='CNN-dense-out data')
 
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
