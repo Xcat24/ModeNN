@@ -217,7 +217,7 @@ class Conv_ModeNN(BaseModel):
         out = F.avg_pool2d(out, self.hparams.pool_shape)
         # print(out.shape)
         origin = out.view(out.size(0), -1)
-        out = self.de_layer(out)
+        out = self.de_layer(origin)
         de_out = torch.cat([origin, out], dim=-1)
         return de_out
     
