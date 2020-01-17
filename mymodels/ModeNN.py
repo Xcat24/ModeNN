@@ -39,8 +39,9 @@ class ModeNN(BaseModel):
             de_out = self.norm_layer(de_out)
         if self.hparams.dropout:
             de_out = self.dropout_layer(de_out)
-    
-        out = self.fc(de_out)
+
+        out = F.relu(de_out)
+        out = self.fc(out)
         # out = self.softmax(out)
         return out
 
@@ -198,6 +199,7 @@ class Conv_ModeNN(BaseModel):
         conv_outshape = self.hparams.conv_outshape
         self.bn1 = nn.BatchNorm2d(self.hparams.out_channels[-1], momentum=0.9)
         self.bn2 = nn.BatchNorm1d(DE_dim)
+        self.de_dropout = nn.Dropout(p=self.hparams.de_dropout)
         self.fc = nn.Linear(DE_dim, self.hparams.num_classes)
 
     def _make_layer(self):
@@ -230,7 +232,8 @@ class Conv_ModeNN(BaseModel):
         origin = out.view(out.size(0), -1)
         out = self.de_layer(origin)
         out = torch.cat([origin, out], dim=-1)
-        out = self.bn2(out)
+        out = F.relu(self.bn2(out))
+        out = self.de_dropout(out)
         out = self.fc(out)
 
         return out
@@ -321,8 +324,11 @@ class Conv_ModeNN(BaseModel):
                                help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
         parser.add_argument('--val-split', default=None, type=float,
                                 help='how much data to split as the val data, now it refers to ORL dataset')
+        #parasm in modenn
         parser.add_argument('--order', default=2, type=int,
                                 help='order of Mode')
+        parser.add_argument('--de-dropout', default=0, type=float,
+                                help='the rate of the de-dropout')
         #params in conv
         parser.add_argument('--kernel-size', nargs='+', type=int,
                                 help='size of kernels, return as list, only support 3 or 5')

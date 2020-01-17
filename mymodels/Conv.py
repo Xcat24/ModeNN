@@ -95,10 +95,10 @@ class MyConv2D(BaseModel):
         return nn.Sequential(*layers)
 
     def _make_dense(self):
-        layers = [nn.Linear(self.hparams.conv_outshape, self.hparams.dense_nodes[0])]
+        layers = [F.relu(nn.Linear(self.hparams.conv_outshape, self.hparams.dense_nodes[0]))]
         if len(self.hparams.dense_nodes) > 1:
             for _ in range(1, len(self.hparams.dense_nodes)):
-                layers.append(nn.Linear(self.hparams.dense_nodes[_-1],self.hparams.dense_nodes[_]))
+                layers.append(F.relu(nn.Linear(self.hparams.dense_nodes[_-1],self.hparams.dense_nodes[_])))
         
         return nn.Sequential(*layers)
 
