@@ -14,7 +14,7 @@ class ModeNN(BaseModel):
             self.input_size = torch.tensor(self.hparams.input_size).prod().item()
         else:
             self.input_size = self.hparams.input_size[0]
-        
+
         print('{} order Descartes Extension'.format(self.hparams.order))
         DE_dim = compute_mode_dim([self.input_size for _ in range(self.hparams.order-1)]) + self.input_size
         print('dims after DE: ', DE_dim)
@@ -40,8 +40,8 @@ class ModeNN(BaseModel):
         if self.hparams.dropout:
             de_out = self.dropout_layer(de_out)
 
-        out = F.relu(de_out)
-        out = self.fc(out)
+        # de_out = self.tanh(de_out)
+        out = self.fc(de_out)
         # out = self.softmax(out)
         return out
 
@@ -61,12 +61,12 @@ class ModeNN(BaseModel):
         tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
         log_dict = ({'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()})
         weight_dict = {}
-       
+
         #log weight to tensorboard
         #TODO 在大维度情况下，会产生过多的线程，导致崩溃（如CIFAR10数据）
         if self.hparams.log_weight:
             mode_para = self.fc.weight
-            poly_item = find_polyitem(dim=self.input_size, order=self.hparams.order) 
+            poly_item = find_polyitem(dim=self.input_size, order=self.hparams.order)
             node_mean = mode_para.mean(dim=0)
             for j in range(len(node_mean)):
                 w = node_mean[j].clone().detach()
@@ -94,7 +94,7 @@ class ModeNN(BaseModel):
                         w = mod_para[j].clone().detach()
                         weight_name=layer_names[i]+'_'+str(w.shape)+'_weight'
                         self.logger.experiment.add_histogram(weight_name, w)
-        
+
         return {
             'avg_val_loss': avg_loss,
             'val_acc': avg_acc,
@@ -141,7 +141,7 @@ class ModeNN(BaseModel):
         parser = argparse.ArgumentParser(parents=[parent_parser])
         parser.add_argument('--num-epochs', default=90, type=int, metavar='N',
                             help='number of total epochs to run')
-        parser.add_argument('--arch', default='ModeNN', type=str, 
+        parser.add_argument('--arch', default='ModeNN', type=str,
                             help='networ architecture')
         parser.add_argument('--seed', type=int, default=None,
                             help='seed for initializing training. ')
@@ -222,7 +222,7 @@ class Conv_ModeNN(BaseModel):
         out = self.de_layer(origin)
         de_out = torch.cat([origin, out], dim=-1)
         return de_out
-    
+
     def forward(self, x):
         out = self.initconv(x)
         out = self.convs(out)
@@ -232,7 +232,8 @@ class Conv_ModeNN(BaseModel):
         origin = out.view(out.size(0), -1)
         out = self.de_layer(origin)
         out = torch.cat([origin, out], dim=-1)
-        out = F.relu(self.bn2(out))
+        out = F.tanh(self.bn2(out))
+        # out = self.bn2(out)
         out = self.de_dropout(out)
         out = self.fc(out)
 
@@ -251,7 +252,7 @@ class Conv_ModeNN(BaseModel):
                 return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
             else:
                 return [opt]
-    
+
     def test_step(self, batch, batch_nb):
         x, y = batch
         de_out = self.de_forward(x)
@@ -288,7 +289,7 @@ class Conv_ModeNN(BaseModel):
         parser = argparse.ArgumentParser(parents=[parent_parser])
         parser.add_argument('--num-epochs', default=90, type=int, metavar='N',
                             help='number of total epochs to run')
-        parser.add_argument('--arch', default='Conv_ModeNN', type=str, 
+        parser.add_argument('--arch', default='Conv_ModeNN', type=str,
                             help='networ architecture')
         parser.add_argument('--seed', type=int, default=None,
                             help='seed for initializing training. ')
