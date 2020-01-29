@@ -165,7 +165,8 @@ def main(hparams):
 
 
 if __name__ == '__main__':
-    main(get_args('wide_resnet'))
+    main(get_args('WideRes_ModeNN'))
+    # main(get_args('wide_resnet'))
     # main(get_args('MyConv2D'))
     # main(get_args('Conv_ModeNN'))
     # main(get_args('ModeNN'))     
