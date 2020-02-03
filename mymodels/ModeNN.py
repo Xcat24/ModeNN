@@ -353,12 +353,15 @@ class Conv_ModeNN(BaseModel):
 class WideRes_ModeNN(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
         super(WideRes_ModeNN, self).__init__(hparams=hparams, loss=loss)
-        self.wide_resnet = Wide_ResNet.wide_resnet(self.hparams.depth, self.hparams.width, self.hparams.dropout, self.hparams.num_classes)
+        self.wide_resnet = Wide_ResNet.wide_resnet(self.hparams.depth, self.hparams.width, self.hparams.dropout, self.hparams.num_classes, self.hparams.use_wrn_linear)
+
+        if self.hparams.feature_dim and not self.hparams.use_wrn_linear:
+            self.hparams.deinput_size = self.hparams.feature_dim
+            self.feature_fc = nn.Linear(64*self.hparams.width, self.hparams.feature_dim)
+            self.feature_bn = nn.BatchNorm1d(64*self.hparams.width)
 
         DE_dim = compute_mode_dim([self.hparams.deinput_size for _ in range(self.hparams.order-1)]) + self.hparams.deinput_size
-        
         self.de_layer = Mode(order_dim=[self.hparams.deinput_size for _ in range(self.hparams.order-1)])
-        
         self.fc = nn.Linear(DE_dim, self.hparams.num_classes)
 
         self.deout_bn = nn.BatchNorm1d(DE_dim)
@@ -366,6 +369,11 @@ class WideRes_ModeNN(BaseModel):
 
     def forward(self, x):
         origin = self.wide_resnet(x)
+
+        if self.hparams.feature_dim and not self.hparams.use_wrn_linear:
+            origin = self.feature_bn(origin)
+            origin = self.feature_fc(origin)
+
         out = self.de_layer(origin)
         de_out = torch.cat([origin, out], dim=-1)
 
@@ -428,6 +436,10 @@ class WideRes_ModeNN(BaseModel):
                                 help='number of resnet layers')
         parser.add_argument('--width', default=10, type=int,
                                 help='wide factor in wide resnet')
+        parser.add_argument('--feature-dim', default=0, type=int,
+                                help='node number of the hidden layer between Wide-ResNet and the DE layer')
+        parser.add_argument('--use-wrn-linear', dest='use_wrn_linear', action='store_true',
+                            help='use linear output layer in Wide ResNet')
         parser.add_argument('--order', default=2, type=int,
                                 help='order of Mode')
         parser.add_argument('--deout-bn', dest='deout_bn', action='store_true',
