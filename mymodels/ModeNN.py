@@ -393,7 +393,7 @@ class WideRes_ModeNN(BaseModel):
                              lr=self.hparams.lr, 
                              weight_decay=self.hparams.weight_decay, 
                              momentum=self.hparams.momentum,
-                             nesterov=self.hparams.nesterov))
+                             nesterov=self.hparams.nesterov)
         return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
 
     @staticmethod
