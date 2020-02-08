@@ -63,7 +63,7 @@ torch.backends.cudnn.enabled = True
 
 
 
-def get_args(arch):
+def get_args():
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument('--is-early-stop', action='store_true',
                                 help='whether to use early stop callback')
@@ -97,13 +97,17 @@ def get_args(arch):
                                help='evaluate model on validation set')
     parent_parser.add_argument('-t', '--test', dest='test', action='store_true',
                                help='test model on test set')
+    parent_parser.add_argument('--net', default='wide_resnet', type=str, 
+                                help='network architecture module to load')
+    
+    args, unknown = parent_parser.parse_known_args()
 
-    parser = mymodels.__dict__[arch].add_model_specific_args(parent_parser)
+    parser = mymodels.__dict__[args.net].add_model_specific_args(parent_parser)
     return parser.parse_args()
 
 
 def main(hparams):
-    model = mymodels.__dict__[hparams.arch](hparams, nn.CrossEntropyLoss())
+    model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
     summary(model, input_size=tuple(hparams.input_size), device='cpu')
     if hparams.seed is not None:
         random.seed(hparams.seed)
@@ -165,11 +169,7 @@ def main(hparams):
 
 
 if __name__ == '__main__':
-    main(get_args('WideRes_ModeNN'))
-    # main(get_args('wide_resnet'))
-    # main(get_args('MyConv2D'))
-    # main(get_args('Conv_ModeNN'))
-    # main(get_args('ModeNN'))     
+    main(get_args())   
 
 
 
