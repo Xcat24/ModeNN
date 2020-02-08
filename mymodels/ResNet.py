@@ -14,7 +14,11 @@ class wide_resnet(BaseModel):
         return self.wide_resnet(x)
     
     def configure_optimizers(self):
-        opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum)
+        opt = torch.optim.SGD(self.parameters(), 
+                            lr=self.hparams.lr, 
+                            weight_decay=self.hparams.weight_decay, 
+                            momentum=self.hparams.momentum, 
+                            nesterov=self.hparams.nesterov)
         return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
 
     @staticmethod
@@ -39,6 +43,8 @@ class wide_resnet(BaseModel):
                             help='number learning rate multiplied when reach the lr-milestones')
         parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                             help='momentum')
+        parser.add_argument('--nesterov', dest='nesterov', action='store_true',
+                            help='use nesterov in SGD')
         parser.add_argument('--dropout', default=0.3, type=float,
                                 help='the rate of the dropout')
         parser.add_argument('--wd', '--weight-decay', default=5e-4, type=float,

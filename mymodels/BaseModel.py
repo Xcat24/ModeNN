@@ -109,9 +109,10 @@ class BaseModel(pl.LightningModule):
         elif self.hparams.dataset == 'CIFAR10':
             if self.hparams.augmentation:
                 train_transform = transforms.Compose([
-                    transforms.RandomHorizontalFlip(),
                     transforms.RandomCrop(32, padding=4),
-                    transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)])
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)
                 ])
             else:
                 train_transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)])
