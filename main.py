@@ -15,7 +15,7 @@ from torchsummary import summary
 import mymodels
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from pytorch_lightning.logging import TestTubeLogger
+from pytorch_lightning.logging import TestTubeLogger, TensorBoardLogger
 from myutils.utils import pick_edge, Pretrain_Select
 
 
@@ -109,6 +109,15 @@ def get_args():
 def main(hparams):
     model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
     summary(model, input_size=tuple(hparams.input_size), device='cpu')
+
+    if hparams.pretrained:
+        model.load_from_checkpoint('/disk/Log/torch/CIFAR10/saved_model/28-10_wide_resnet/_ckpt_epoch_175.ckpt')
+        # state_dict = torch.load('/disk/Log/torch/CIFAR10/saved_model/28-10_wide_resnet/_ckpt_epoch_175.ckpt')['state_dict']
+        # for name, para in model.named_parameters():
+        #     if name in state_dict:
+        #         para = state_dict[name]
+        #         para.requires_grad = False
+
     if hparams.seed is not None:
         random.seed(hparams.seed)
         torch.manual_seed(hparams.seed)
@@ -127,28 +136,27 @@ def main(hparams):
     if hparams.is_checkpoint:
         checkpoint_callback = ModelCheckpoint(
             filepath=hparams.saved_path,
-            save_best_only=True,
+            save_top_k = 1,
             verbose=True,
             monitor='val_acc',
-            mode='max',
-            prefix=''
+            mode='max'
         )
     else:
         checkpoint_callback = None
 
     if hparams.is_tensorboard:
-        tb_logger = TestTubeLogger(
+        tb_logger = TensorBoardLogger(
             save_dir=hparams.log_dir,
-            name=hparams.tb_dir,
-            debug=False,
-            create_git_tag=False)
+            name=hparams.tb_dir
+            )
     else:
-        tb_logger = None
+        tb_logger = False
         
     trainer = Trainer(
-        min_nb_epochs=1,
-        max_nb_epochs=hparams.num_epochs,
+        min_epochs=1,
+        max_epochs=hparams.num_epochs,
         log_gpu_memory=hparams.log_gpu,
+        weights_summary='full',
         gpus=hparams.gpus,
         fast_dev_run=False, #activate callbacks, everything but only with 1 training and 1 validation batch
         gradient_clip_val=0,  #this will clip the gradient norm computed over all model parameters together
