@@ -52,8 +52,6 @@ class wide_resnet(BaseModel):
                             dest='weight_decay')
         parser.add_argument('--log-weight', default=0, type=int,
                                 help='log weight figure every x epoch')
-        parser.add_argument('--pretrained', dest='pretrained', action='store_true',
-                            help='use pre-trained model')
         parser.add_argument('--num-classes', default=10, type=int,
                                 help='number of the total classes')
         parser.add_argument('--input-size', nargs='+', type=int,

@@ -85,6 +85,8 @@ def get_args():
                                help='path to dataset')
     parent_parser.add_argument('--save-path', default=".", type=str,
                                help='path to save output')
+    parent_parser.add_argument('--pretrained', default=".", type=str,
+                               help='path to the saved modal')
     parent_parser.add_argument('--gpus', type=int, default=1,
                                help='how many gpus')
     parent_parser.add_argument('--log-gpu', action='store_true',
@@ -108,15 +110,16 @@ def get_args():
 
 def main(hparams):
     model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
-    summary(model, input_size=tuple(hparams.input_size), device='cpu')
 
     if hparams.pretrained:
-        model.load_from_checkpoint('/disk/Log/torch/CIFAR10/saved_model/28-10_wide_resnet/_ckpt_epoch_175.ckpt')
-        # state_dict = torch.load('/disk/Log/torch/CIFAR10/saved_model/28-10_wide_resnet/_ckpt_epoch_175.ckpt')['state_dict']
-        # for name, para in model.named_parameters():
-        #     if name in state_dict:
-        #         para = state_dict[name]
-        #         para.requires_grad = False
+        state_dict = torch.load(hparams.pretrained)['state_dict']
+        for name, para in model.named_parameters():
+            if name in state_dict:
+                with torch.no_grad():
+                    para.copy_(state_dict[name])
+                para.requires_grad = False
+    
+    summary(model, input_size=tuple(hparams.input_size), device='cpu')
 
     if hparams.seed is not None:
         random.seed(hparams.seed)
