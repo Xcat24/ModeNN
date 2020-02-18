@@ -85,7 +85,7 @@ def get_args():
                                help='path to dataset')
     parent_parser.add_argument('--save-path', default=".", type=str,
                                help='path to save output')
-    parent_parser.add_argument('--pretrained', default=".", type=str,
+    parent_parser.add_argument('--pretrained', default=None, type=str,
                                help='path to the saved modal')
     parent_parser.add_argument('--gpus', type=int, default=1,
                                help='how many gpus')
@@ -148,7 +148,7 @@ def main(hparams):
         checkpoint_callback = None
 
     if hparams.is_tensorboard:
-        tb_logger = TensorBoardLogger(
+        tb_logger = TestTubeLogger(
             save_dir=hparams.log_dir,
             name=hparams.tb_dir
             )
