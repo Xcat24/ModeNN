@@ -93,7 +93,7 @@ def get_args():
                                help='whether to log gpu usage')
     parent_parser.add_argument('--distributed-backend', type=str, default='dp', choices=('dp', 'ddp', 'ddp2'),
                                help='supports three options dp, ddp, ddp2')
-    parent_parser.add_argument('--use-16bit', dest='use-16bit', action='store_true',
+    parent_parser.add_argument('--use-16bit', dest='use_16bit', action='store_true',
                                help='if true uses 16 bit precision')
     parent_parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                                help='evaluate model on validation set')
@@ -164,6 +164,7 @@ def main(hparams):
         fast_dev_run=False, #activate callbacks, everything but only with 1 training and 1 validation batch
         gradient_clip_val=0,  #this will clip the gradient norm computed over all model parameters together
         track_grad_norm=-1,  #Looking at grad norms
+        use_amp=hparams.use_16bit,
         # print_nan_grads=True,
         checkpoint_callback=checkpoint_callback,
         logger=tb_logger,
