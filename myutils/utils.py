@@ -2,6 +2,7 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 import numpy as np
+import seaborn as sns
 from skimage import feature
 from skimage.color import rgb2gray
 from matplotlib import pyplot as plt
@@ -59,6 +60,31 @@ def draw_weight_distribute(model, input_dim, order, class_num, out_put):
     plt.xticks(x, poly_item, rotation=-45, fontsize='small')
     plt.legend()
     plt.savefig(out_put)
+
+def kernel_weight_to_visual_numpy(state_dict, name):
+    '''
+    输入为4维torch.tensor
+    '''
+    w = state_dict[name]
+    if len(w.shape) == 4:
+        w = torch.sum(w, dim=1)
+        return w.reshape((w.shape[0],-1)).to('cpu').numpy().T
+    elif len(w.shape) == 2:
+        return w.to('cpu').numpy()
+    else:
+        return None
+
+def kernel_heatmap(state_dict, name, save_path='./weight_heatmap/'):
+    x = kernel_weight_to_visual_numpy(state_dict, name)
+    if type(x) != np.ndarray:
+        return
+    sns.set(style="white")
+    f, ax = plt.subplots(figsize=(50, 8))
+    ax.set_title(name)
+    cmap = sns.diverging_palette(240, 10, as_cmap=True)
+    sns.heatmap(x, cmap=cmap, xticklabels=8, yticklabels=False, vmax=1, vmin=-1, center=0, square=True, linewidths=.5, cbar_kws={"shrink": .5})
+    f.savefig(save_path+name+'.png', dpi=300)
+    return
 
 def data_statics(self, tag, data, verbose=False):
         """
