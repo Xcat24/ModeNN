@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.init as init
 import torch.nn.functional as F
 from torch.autograd import Variable
+from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask, find_polyitem, data_statics
 
 import sys
 import numpy as np
@@ -73,9 +74,13 @@ class Wide_ResNet(nn.Module):
 
     def forward(self, x):
         out = self.conv1(x)
+        # data_statics(tag='wide resnet conv1 out', data=out, verbose=True)
         out = self.layer1(out)
+        # data_statics(tag='wide resnet layer1 out', data=out, verbose=True)
         out = self.layer2(out)
+        # data_statics(tag='wide resnet layer2 out', data=out, verbose=True)
         out = self.layer3(out)
+        # data_statics(tag='wide resnet layer3(before pooling) out', data=out, verbose=True)
         out = F.relu(self.bn1(out))
         out = F.avg_pool2d(out, 8)
         out = out.view(out.size(0), -1)
