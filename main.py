@@ -3,7 +3,7 @@ import time
 import os
 import random
 import argparse
-import configparser
+import logging as log
 import numpy as np
 import torch
 import torch.nn as nn
@@ -14,8 +14,8 @@ from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 import mymodels
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from pytorch_lightning.logging import TestTubeLogger, TensorBoardLogger
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, Callback
+from pytorch_lightning.loggers import TestTubeLogger, TensorBoardLogger
 from myutils.utils import pick_edge, Pretrain_Select
 
 
@@ -61,6 +61,60 @@ torch.backends.cudnn.enabled = True
 #                          norm=norm, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=0, lr_milestones=lr_milestones)
 
 
+class LogCallback(Callback):
+    def on_fit_start(self, trainer, pl_module):
+        """Called when the fit begins."""
+        pass
+    
+    def on_fit_end(self, trainer, pl_module):
+        """Called when the fit ends."""
+        pass
+
+    def on_epoch_start(self, trainer, pl_module):
+        """Called when the epoch begins."""
+        self.t0 = time.time()
+
+    def on_epoch_end(self, trainer, pl_module):
+        """Called when the epoch ends."""
+        if not pl_module.hparams.bar:
+            # print(logs.keys())
+            logs = trainer.callback_metrics
+            epoch = trainer.current_epoch
+            log.info('  epoch {0}: train_loss={1:.3f}, val_loss={2:.3f}, val_acc={3:.4f}%,  time spend={4:.1f} mins'.format(
+                epoch, logs.get('training_loss'), logs.get('val_loss'), 100*logs.get('val_acc'), (time.time()-self.t0)/60.0))
+
+    def on_batch_start(self, trainer, pl_module):
+        """Called when the training batch begins."""
+        pass
+
+    def on_batch_end(self, trainer, pl_module):
+        """Called when the training batch ends."""
+        pass
+
+    def on_train_start(self, trainer, pl_module):
+        """Called when the train begins."""
+        print('train begins')
+
+    def on_train_end(self, trainer, pl_module):
+        """Called when the train ends."""
+        # pl_module.logger.add_figure()
+        pass
+
+    def on_validation_start(self, trainer, pl_module):
+        """Called when the validation loop begins."""
+        pass
+
+    def on_validation_end(self, trainer, pl_module):
+        """Called when the validation loop ends."""
+        pass
+
+    def on_test_start(self, trainer, pl_module):
+        """Called when the test begins."""
+        pass
+
+    def on_test_end(self, trainer, pl_module):
+        """Called when the test ends."""
+        pass
 
 
 def get_args():
@@ -91,6 +145,8 @@ def get_args():
                                help='how many gpus')
     parent_parser.add_argument('--log-gpu', action='store_true',
                                help='whether to log gpu usage')
+    parent_parser.add_argument('--bar', action='store_true',
+                               help='if true print progress bar')
     parent_parser.add_argument('--distributed-backend', type=str, default='dp', choices=('dp', 'ddp', 'ddp2'),
                                help='supports three options dp, ddp, ddp2')
     parent_parser.add_argument('--use-16bit', dest='use_16bit', action='store_true',
@@ -155,6 +211,8 @@ def main(hparams):
     else:
         tb_logger = False
         
+    callbacks = [LogCallback()]
+
     trainer = Trainer(
         min_epochs=1,
         max_epochs=hparams.num_epochs,
@@ -168,9 +226,12 @@ def main(hparams):
         # print_nan_grads=True,
         checkpoint_callback=checkpoint_callback,
         logger=tb_logger,
+        show_progress_bar=hparams.bar,
         # row_log_interval=80,
         # log_save_interval=80,
-        early_stop_callback=early_stop_callback)
+        early_stop_callback=early_stop_callback,
+        callbacks=callbacks
+        )
 
     if hparams.evaluate:
         trainer.run_evaluation()

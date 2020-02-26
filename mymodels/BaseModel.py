@@ -1,6 +1,8 @@
 import numpy as np
+import logging as log
 import torch
 import argparse
+from collections import OrderedDict
 import torchvision
 import torchvision.transforms as transforms
 from torch import nn
@@ -18,11 +20,16 @@ class BaseModel(pl.LightningModule):
         x, y = batch
         out = self.forward(x)
         loss = self.loss(out, y)
-        return {
+
+        # in DP mode (default) make sure if result is scalar, there's another dim in the beginning
+        if self.trainer.use_dp or self.trainer.use_ddp2:
+            loss = loss.unsqueeze(0)
+        
+        return OrderedDict({
             'loss': loss,
-            'progress_bar': {'training_loss': loss}, # optional (MUST ALL BE TENSORS)
+            'progress_bar': {'training_loss': loss.item()}, # optional (MUST ALL BE TENSORS)
             'log': {'training_loss': loss.item()}
-        }
+        })
 
     def validation_step(self, batch, batch_nb):
         x, y = batch
@@ -33,25 +40,46 @@ class BaseModel(pl.LightningModule):
         labels_hat = torch.argmax(out, dim=1)
         val_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
 
+        # in DP mode (default) make sure if result is scalar, there's another dim in the beginning
+        if self.trainer.use_dp or self.trainer.use_ddp2:
+            loss = loss.unsqueeze(0)
+            val_acc = val_acc.unsqueeze(0)
+
         # return whatever you need for the collation function validation_end
-        output = {
+        output = OrderedDict({
             'val_loss': loss,
             'val_acc': torch.tensor(val_acc) # everything must be a tensor
-        }
+        })
 
         return output
 
     def validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
-        tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
-        log_dict = {'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()}
+        val_loss_mean = 0
+        val_acc_mean = 0
+        for output in outputs:
+            val_loss = output['val_loss']
+
+            # reduce manually when using dp
+            if self.trainer.use_dp or self.trainer.use_ddp2:
+                val_loss = torch.mean(val_loss)
+            val_loss_mean += val_loss
+
+            # reduce manually when using dp
+            val_acc = output['val_acc']
+            if self.trainer.use_dp or self.trainer.use_ddp2:
+                val_acc = torch.mean(val_acc)
+
+            val_acc_mean += val_acc
+
+        val_loss_mean /= len(outputs)
+        val_acc_mean /= len(outputs)
+
+        tqdm_dict = {'val_loss': val_loss_mean.item(), 'val_acc': val_acc_mean.item()}
 
         return {
-            'avg_val_loss': avg_loss,
-            'val_acc': avg_acc,
             'progress_bar': tqdm_dict,
-            'log': log_dict
+            'log': tqdm_dict,
+            'val_acc': val_loss_mean
             }
 
     def test_step(self, batch, batch_nb):
@@ -74,7 +102,11 @@ class BaseModel(pl.LightningModule):
     def test_end(self, outputs):
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
-        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
+        tqdm_dict = {'avg_test_loss': avg_loss.item(), 'test_acc': avg_acc.item()}
+        return {
+            'progress_bar': tqdm_dict,
+            'log': {'test_acc': avg_acc.item()}
+        }
     
     def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i, second_order_closure=None):
         """
@@ -94,8 +126,9 @@ class BaseModel(pl.LightningModule):
         # clear gradients
         optimizer.zero_grad()
 
-    @pl.data_loader
+
     def train_dataloader(self):
+        log.info('Training data loader called.')
         if self.hparams.dataset == 'MNIST':
             train_dataset = torchvision.datasets.MNIST(root=self.hparams.data_dir,
                                                     train=True,
@@ -128,8 +161,9 @@ class BaseModel(pl.LightningModule):
                                                 batch_size=self.hparams.batch_size,
                                                 shuffle=True)
 
-    @pl.data_loader
+
     def val_dataloader(self):
+        log.info('Valuating data loader called.')
         if self.hparams.dataset == 'MNIST':
             # MNIST dataset
             val_dataset = torchvision.datasets.MNIST(root=self.hparams.data_dir,
@@ -152,7 +186,7 @@ class BaseModel(pl.LightningModule):
                                                 batch_size=self.hparams.batch_size,
                                                 shuffle=False)
 
-    @pl.data_loader
+
     def test_dataloader(self):
         if self.hparams.dataset == 'MNIST':
             # MNIST dataset
