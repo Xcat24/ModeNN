@@ -1,9 +1,8 @@
-import math
 import time
-import os
 import random
 import argparse
 import logging as log
+from matplotlib import pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -16,7 +15,7 @@ import mymodels
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, Callback
 from pytorch_lightning.loggers import TestTubeLogger, TensorBoardLogger
-from myutils.utils import pick_edge, Pretrain_Select
+from myutils.utils import pick_edge, Pretrain_Select, find_polyitem, kernel_heatmap
 
 
 # Device configuration
@@ -76,6 +75,19 @@ class LogCallback(Callback):
 
     def on_epoch_end(self, trainer, pl_module):
         """Called when the epoch ends."""
+        #log term weight per epoch
+        # if pl_module.hparams.log_modenn_weight_scalars:
+        #     weight_dict = {}
+        #     if pl_module.hparams.log_weight:
+        #         mode_para = pl_module.fc.weight
+        #         poly_item = find_polyitem(dim=pl_module.hparams.input_size, order=pl_module.hparams.order)
+        #         node_mean = mode_para.mean(dim=0)
+        #         for j in range(len(node_mean)):
+        #             w = node_mean[j].clone().detach()
+        #             weight_dict.update({poly_item[j]:w.item()})
+        #         self.logger.experiment.add_scalars('mode_layer_weight', weight_dict, self.current_epoch)
+
+        #print result
         if not pl_module.hparams.bar:
             # print(logs.keys())
             logs = trainer.callback_metrics
@@ -93,12 +105,53 @@ class LogCallback(Callback):
 
     def on_train_start(self, trainer, pl_module):
         """Called when the train begins."""
-        print('train begins')
+        #plt.bar部分在高维度时用时太多，暂不采用
+        if pl_module.hparams.log_modenn_weight_fig:
+            log.info('plot init modenn fc weight figure into tensorboard.')
+            mode_para = pl_module.fc.weight
+            poly_item = find_polyitem(dim=pl_module.hparams.input_size, order=pl_module.hparams.order)
+            labels = ['node{}'.format(i) for i in range(len(mode_para))]
+            x = range(len(poly_item))
+            fig = plt.figure(figsize=(0.2*mode_para.size()[0]*mode_para.size()[1],10))
+            for i in range(len(mode_para)):
+                w = mode_para[i].cpu().detach().numpy()
+                plt.bar([j+0.2*i for j in x], w, width=0.2, label=labels[i])
+            plt.xticks(x, poly_item, rotation=-45, fontsize=6)
+            plt.legend()
+            pl_module.logger.experiment.add_figure('init weight', fig)
+        
+        log.info('training begins...')
+        
 
     def on_train_end(self, trainer, pl_module):
         """Called when the train ends."""
-        # pl_module.logger.add_figure()
-        pass
+                   
+        #log weight to tensorboard
+        if pl_module.hparams.log_modenn_weight_fig:
+            log.info('plot final modenn fc weight figure into tensorboard.')
+            mode_para = pl_module.fc.weight
+            poly_item = find_polyitem(dim=pl_module.hparams.input_size, order=pl_module.hparams.order)
+            labels = ['node{}'.format(i) for i in range(len(mode_para))]
+            x = range(len(poly_item))
+            fig = plt.figure(figsize=(0.2*mode_para.size()[0]*mode_para.size()[1],10))
+            for i in range(len(mode_para)):
+                w = mode_para[i].cpu().detach().numpy()
+                plt.bar([j+0.2*i for j in x], w, width=0.2, label=labels[i])
+            plt.xticks(x, poly_item, rotation=-45, fontsize=6)
+            plt.legend()
+            pl_module.logger.experiment.add_figure('final weight', fig)
+
+        #draw final weight heatmap in tensorboard
+        if pl_module.hparams.log_weight_heatmap:
+            log.info('drawing final conv/fc weight heatmap in tensorboard...')
+            for name, para in pl_module.named_parameters():
+                if 'weight' in name:
+                    f = kernel_heatmap(para, name)
+                    if f:
+                        pl_module.logger.experiment.add_figure('final_'+name, f)
+
+
+        log.info('training completed!')
 
     def on_validation_start(self, trainer, pl_module):
         """Called when the validation loop begins."""
@@ -155,6 +208,12 @@ def get_args():
                                help='evaluate model on validation set')
     parent_parser.add_argument('-t', '--test', dest='test', action='store_true',
                                help='test model on test set')
+    parent_parser.add_argument('--log-modenn-weight-scalars', action='store_true',
+                               help='whether to log fc weight for each term in tensorboard')
+    parent_parser.add_argument('--log-modenn-weight-fig', action='store_true',
+                               help='whether to log final fc weight figure in tensorboard')
+    parent_parser.add_argument('--log-weight-heatmap', action='store_true',
+                               help='whether to log final conv/fc weight heatmap in tensorboard')
     parent_parser.add_argument('--net', default='wide_resnet', type=str, 
                                 help='network architecture module to load')
     
