@@ -23,7 +23,7 @@ class ModeNN(BaseModel):
         self.de_layer = Mode(order_dim=[self.input_size for _ in range(self.hparams.order-1)])
 
         if self.hparams.dropout:
-            self.dropout_layer = nn.Dropout(dropout)
+            self.dropout_layer = nn.Dropout(self.hparams.dropout)
         if self.hparams.norm:
             self.norm_layer = nn.BatchNorm1d(DE_dim)
 
@@ -53,7 +53,7 @@ class ModeNN(BaseModel):
         return de_out
 
     def configure_optimizers(self):
-        opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=True)
+        opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=self.hparams.nesterov)
         return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
 
     def validation_end(self, outputs):
@@ -61,40 +61,17 @@ class ModeNN(BaseModel):
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
         tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
         log_dict = ({'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()})
-        weight_dict = {}
-
-        #log weight to tensorboard
-        #TODO 在大维度情况下，会产生过多的线程，导致崩溃（如CIFAR10数据）
-        if self.hparams.log_weight:
-            mode_para = self.fc.weight
-            poly_item = find_polyitem(dim=self.input_size, order=self.hparams.order)
-            node_mean = mode_para.mean(dim=0)
-            for j in range(len(node_mean)):
-                w = node_mean[j].clone().detach()
-                weight_dict.update({poly_item[j]:w.item()})
-            self.logger.experiment.add_scalars('mode_layer_weight', weight_dict, self.current_epoch)
-
-            if self.current_epoch%self.hparams.log_weight==0:
-                #draw matplot figure
-                labels = ['node{}'.format(i) for i in range(len(mode_para))]
-                x = range(len(poly_item))
-                fig = plt.figure(figsize=(0.2*mode_para.size()[0]*mode_para.size()[1],10))
-                for i in range(len(mode_para)):
-                    w = mode_para[i].cpu().numpy()
-                    plt.bar([j+0.2*i for j in x], w, width=0.2, label=labels[i])
-                plt.xticks(x, poly_item, rotation=-45, fontsize=6)
-                plt.legend()
-                self.logger.experiment.add_figure('epoch_{}'.format(self.current_epoch), fig, self.current_epoch)
+                                      
         #logger
-        if self.logger:
-            layer_names = list(self._modules)
-            for i in range(len(layer_names)):
-                mod_para = list(self._modules[layer_names[i]].parameters())
-                if mod_para:
-                    for j in range(len(mod_para)):
-                        w = mod_para[j].clone().detach()
-                        weight_name=layer_names[i]+'_'+str(w.shape)+'_weight'
-                        self.logger.experiment.add_histogram(weight_name, w)
+        # if self.logger:
+        #     layer_names = list(self._modules)
+        #     for i in range(len(layer_names)):
+        #         mod_para = list(self._modules[layer_names[i]].parameters())
+        #         if mod_para:
+        #             for j in range(len(mod_para)):
+        #                 w = mod_para[j].clone().detach()
+        #                 weight_name=layer_names[i]+'_'+str(w.shape)+'_weight'
+        #                 self.logger.experiment.add_histogram(weight_name, w)
 
         return {
             'avg_val_loss': avg_loss,
@@ -159,15 +136,15 @@ class ModeNN(BaseModel):
                             help='number learning rate multiplied when reach the lr-milestones')
         parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                             help='momentum')
+        parser.add_argument('--nesterov', dest='nesterov', action='store_true',
+                            help='use nesterov in SGD')
         parser.add_argument('--dropout', default=0, type=float,
                                 help='the rate of the dropout')
-        parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
+        parser.add_argument('--wd', '--weight-decay', default=5e-4, type=float,
                             metavar='W', help='weight decay (default: 1e-4)',
                             dest='weight_decay')
         parser.add_argument('--log-weight', default=0, type=int,
                                 help='log weight figure every x epoch')
-        parser.add_argument('--pretrained', dest='pretrained', action='store_true',
-                            help='use pre-trained model')
         parser.add_argument('--num-classes', default=None, type=int,
                                 help='number of the total classes')
         parser.add_argument('--input-size', nargs='+', type=int,
@@ -209,7 +186,7 @@ class Conv_ModeNN(BaseModel):
             if self.hparams.basic_mode == 'single':
                 layers.append(single_conv_basic(self.hparams.out_channels[_-1], self.hparams.out_channels[_], self.hparams.dropout, 3, self.hparams.stride))
             elif self.hparams.basic_mode == 'double':
-                layer.append(double_conv_basic(self.hparams.out_channels[_-1], self.hparams.out_channels[_], self.hparams.dropout, 3, self.hparams.stride))
+                layers.append(double_conv_basic(self.hparams.out_channels[_-1], self.hparams.out_channels[_], self.hparams.dropout, 3, self.hparams.stride))
 
         return nn.Sequential(*layers)
 
@@ -242,7 +219,7 @@ class Conv_ModeNN(BaseModel):
 
     def configure_optimizers(self):
         if self.hparams.opt == 'SGD':
-            opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=True)
+            opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=self.hparams.nesterov)
             if self.hparams.lr_milestones:
                 return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
             else:
@@ -307,6 +284,8 @@ class Conv_ModeNN(BaseModel):
                             help='number learning rate multiplied when reach the lr-milestones')
         parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                             help='momentum')
+        parser.add_argument('--nesterov', dest='nesterov', action='store_true',
+                            help='use nesterov in SGD')
         parser.add_argument('--dropout', default=0, type=float,
                                 help='the rate of the dropout')
         parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
