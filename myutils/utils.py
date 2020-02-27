@@ -38,6 +38,8 @@ def Pretrain_Mask(model_path, weight_name='fc.weight', num=35*9):
     return torch.topk(weight, num)[1]
 
 def find_polyitem(dim, order):
+    if isinstance(dim, list):
+        dim = np.product(dim)
     result = ['x{}'.format(_) for _ in range(dim)]
     for i in range(1, order):
         temp = torch.combinations(torch.arange(0,dim), i+1, with_replacement=True)
@@ -61,29 +63,39 @@ def draw_weight_distribute(model, input_dim, order, class_num, out_put):
     plt.legend()
     plt.savefig(out_put)
 
-def kernel_weight_to_visual_numpy(state_dict, name):
+def kernel_weight_to_visual_numpy(w):
     '''
     输入为4维torch.tensor
     '''
-    w = state_dict[name]
     if len(w.shape) == 4:
         w = torch.sum(w, dim=1)
-        return w.reshape((w.shape[0],-1)).to('cpu').numpy().T
+        return w.reshape((w.shape[0],-1)).to('cpu').detach().numpy().T
     elif len(w.shape) == 2:
         return w.to('cpu').numpy()
     else:
         return None
 
-def kernel_heatmap(state_dict, name, save_path='./weight_heatmap/'):
-    x = kernel_weight_to_visual_numpy(state_dict, name)
+def kernel_heatmap(w, name):
+    x = kernel_weight_to_visual_numpy(w)
     if type(x) != np.ndarray:
-        return
+        return False
     sns.set(style="white")
-    f, ax = plt.subplots(figsize=(50, 8))
-    ax.set_title(name)
+    pic_w = 0.2*x.shape[0]*x.shape[1]
+    if pic_w > 65535:
+        pic_w = 65535
+    f, ax = plt.subplots(figsize=(pic_w, 10))
     cmap = sns.diverging_palette(240, 10, as_cmap=True)
     sns.heatmap(x, cmap=cmap, xticklabels=8, yticklabels=False, vmax=1, vmin=-1, center=0, square=True, linewidths=.5, cbar_kws={"shrink": .5})
-    f.savefig(save_path+name+'.png', dpi=300)
+    return f
+
+def draw_heatmap_from_state(model_path, save_path='/disk/Code/pytorch/weight_heatmap/'):
+    state_dict = torch.load(model_path)['state_dict']
+    for name in state_dict:
+        if 'weight' in name:
+            w = state_dict[name]
+            f = kernel_heatmap(w, name)
+            if f:
+                f.savefig(save_path+name+'.png', dpi=300)
     return
 
 def data_statics(tag, data, bins_num=10, verbose=False):
@@ -173,4 +185,5 @@ class Pretrain_Select(object):
 if __name__ == "__main__":
     # x = torchvision.datasets.MNIST(root='/disk/Dataset/', train=True, transform=transforms.Compose([transforms.ToTensor(), Pretrain_Select('/disk/Log/torch/model/NoHiddenBase_MNIST/_ckpt_epoch_69.ckpt')]))
     # print(x.__getitem__(1)[0].shape)
-    draw_weight_distribute('/disk/Log/torch/model/3-ModeNN_Iris/_ckpt_epoch_15.ckpt', input_dim=4, order=2, class_num=3, out_put='/disk/test.jpg')
+    # draw_weight_distribute('/disk/Log/torch/model/3-ModeNN_Iris/_ckpt_epoch_15.ckpt', input_dim=4, order=2, class_num=3, out_put='/disk/test.jpg')
+    draw_heatmap_from_state('/disk/Log/torch/CIFAR10/saved_model/28-1-wide_resnet/_ckpt_epoch_122.ckpt')
