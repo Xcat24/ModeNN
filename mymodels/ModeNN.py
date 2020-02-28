@@ -38,6 +38,8 @@ class ModeNN(BaseModel):
 
         if self.hparams.norm:
             de_out = self.norm_layer(de_out)
+            if self.hparams.de_relu:
+                de_out = F.relu(de_out)
         if self.hparams.dropout:
             de_out = self.dropout_layer(de_out)
 
@@ -155,6 +157,8 @@ class ModeNN(BaseModel):
                                help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
         parser.add_argument('--norm', action='store_true',
                                help='whether to use normalization layer')
+        parser.add_argument('--de-relu', action='store_true',
+                               help='whether to use a relu after normalization layer on de data')
         parser.add_argument('--val-split', default=None, type=float,
                                 help='how much data to split as the val data')
         return parser
