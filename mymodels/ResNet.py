@@ -8,7 +8,7 @@ from sota_module import resnet, Wide_ResNet
 class wide_resnet(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
         super(wide_resnet, self).__init__(hparams=hparams, loss=loss)
-        self.wide_resnet = Wide_ResNet.wide_resnet(self.hparams.depth, self.hparams.width, self.hparams.dropout, self.hparams.num_classes, self.hparams.use_wrn_linear)
+        self.wide_resnet = Wide_ResNet.wide_resnet(self.hparams.depth, self.hparams.width, self.hparams.dropout, self.hparams.num_classes, self.hparams.use_wrn_linear, self.hparams.use_anti_relu)
 
     def forward(self, x):
         return self.wide_resnet(x)
@@ -67,4 +67,6 @@ class wide_resnet(BaseModel):
                                 help='wide factor in wide resnet')
         parser.add_argument('--use-wrn-linear', dest='use_wrn_linear', action='store_true',
                             help='use linear output layer in Wide ResNet')
+        parser.add_argument('--use-anti-relu', dest='use_anti_relu', action='store_true',
+                            help='use anti-relu as activation inside the conv layers in Wide ResNet')
         return parser
