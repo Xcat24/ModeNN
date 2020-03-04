@@ -186,4 +186,4 @@ if __name__ == "__main__":
     # x = torchvision.datasets.MNIST(root='/disk/Dataset/', train=True, transform=transforms.Compose([transforms.ToTensor(), Pretrain_Select('/disk/Log/torch/model/NoHiddenBase_MNIST/_ckpt_epoch_69.ckpt')]))
     # print(x.__getitem__(1)[0].shape)
     # draw_weight_distribute('/disk/Log/torch/model/3-ModeNN_Iris/_ckpt_epoch_15.ckpt', input_dim=4, order=2, class_num=3, out_put='/disk/test.jpg')
-    draw_heatmap_from_state('/disk/Log/torch/CIFAR10/saved_model/28-1-wide_resnet/_ckpt_epoch_122.ckpt')
+    draw_heatmap_from_state('/disk/Log/torch/CIFAR10/saved_model/10-1-wide_resnet/_ckpt_epoch_164.ckpt', '/disk/Code/pytorch/weight_heatmap/WRN-10-1/')

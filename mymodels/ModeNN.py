@@ -27,8 +27,11 @@ class ModeNN(BaseModel):
         if self.hparams.norm:
             self.norm_layer = nn.BatchNorm1d(DE_dim)
 
-        self.tanh = nn.Tanh()
-        self.fc = nn.Linear(DE_dim, self.hparams.num_classes)
+        if self.hparams.hidden_nodes:
+            self.hidden = nn.Linear(DE_dim, self.hparams.hidden_nodes)
+            self.fc = nn.Linear(self.hparams.hidden_nodes, self.hparams.num_classes)
+        else:
+            self.fc = nn.Linear(DE_dim, self.hparams.num_classes)
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
@@ -44,6 +47,9 @@ class ModeNN(BaseModel):
             de_out = self.dropout_layer(de_out)
 
         # de_out = self.tanh(de_out)
+        if self.hparams.hidden_nodes:
+            de_out = self.hidden(de_out) #实际上是hidde_out
+
         out = self.fc(de_out)
         # out = self.softmax(out)
         return out
@@ -145,6 +151,8 @@ class ModeNN(BaseModel):
         parser.add_argument('--wd', '--weight-decay', default=5e-4, type=float,
                             metavar='W', help='weight decay (default: 1e-4)',
                             dest='weight_decay')
+        parser.add_argument('--hidden-nodes', default=0, type=int,
+                                help='use how many hidden nodes between de-layer and out-layer, 0 is not to use hidden layer(default)')
         parser.add_argument('--log-weight', default=0, type=int,
                                 help='log weight figure every x epoch')
         parser.add_argument('--num-classes', default=None, type=int,
