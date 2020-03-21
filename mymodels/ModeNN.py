@@ -29,6 +29,7 @@ class ModeNN(BaseModel):
 
         if self.hparams.hidden_nodes:
             self.hidden = nn.Linear(DE_dim, self.hparams.hidden_nodes)
+            self.hidden_bn = nn.BatchNorm1d(self.hparams.hidden_nodes)
             self.fc = nn.Linear(self.hparams.hidden_nodes, self.hparams.num_classes)
         else:
             self.fc = nn.Linear(DE_dim, self.hparams.num_classes)
@@ -48,7 +49,7 @@ class ModeNN(BaseModel):
 
         # de_out = self.tanh(de_out)
         if self.hparams.hidden_nodes:
-            de_out = self.hidden(de_out) #实际上是hidde_out
+            de_out = self.hidden_bn(F.relu(self.hidden(de_out))) #实际上是hidde_out
 
         out = self.fc(de_out)
         # out = self.softmax(out)
