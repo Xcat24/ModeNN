@@ -6,7 +6,9 @@ from .BaseModel import BaseModel
 from .Conv import conv3x3, conv5x5, conv_init, single_conv_basic, double_conv_basic
 from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask, find_polyitem, data_statics
 from layer import DescartesExtension, MaskDE, LocalDE, SLConv, Mode, MaskLayer
-from sota_module import resnet, Wide_ResNet
+from sota_module import resnet, Wide_ResNet, partial_resnet
+
+
 
 class ModeNN(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
@@ -171,6 +173,130 @@ class ModeNN(BaseModel):
         parser.add_argument('--val-split', default=None, type=float,
                                 help='how much data to split as the val data')
         return parser
+
+
+class Res_ModeNN(BaseModel):
+    def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
+        super(Res_ModeNN, self).__init__(hparams=hparams, loss=loss)
+
+        self.feature_extractor = partial_resnet.ResNet(backbone=hparams.backbone)
+
+        print('{} order Descartes Extension'.format(self.hparams.order))
+        res_outshape = self.feature_extractor.out_dim
+        DE_dim = compute_mode_dim([res_outshape for _ in range(self.hparams.order-1)]) + res_outshape
+        print('dims after DE: ', DE_dim)
+        print('Estimated Total Size (MB): ', DE_dim*4/(1024*1024))
+        self.de_layer = Mode(order_dim=[res_outshape for _ in range(self.hparams.order-1)])
+
+        self.bn = nn.BatchNorm1d(DE_dim)
+        self.de_dropout = nn.Dropout(p=self.hparams.de_dropout)
+        self.fc = nn.Linear(DE_dim, self.hparams.num_classes)
+
+
+    def forward(self, x):
+        out = self.feature_extractor(x)
+        # print(out.shape)
+        origin = out.view(out.size(0), -1)
+        out = self.de_layer(origin)
+        out = torch.cat([origin, out], dim=-1)
+        out = self.bn(out)
+        if self.hparams.de_dropout:
+            out = self.de_dropout(out)
+        out = self.fc(out)
+
+        return out
+
+    def configure_optimizers(self):
+        if self.hparams.opt == 'SGD':
+            opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=self.hparams.nesterov)
+            if self.hparams.lr_milestones:
+                return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
+            else:
+                return [opt]
+        elif self.hparams.opt == 'Adam':
+            opt = torch.optim.Adam(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay)
+            if self.hparams.lr_milestones:
+                return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
+            else:
+                return [opt]
+
+    def test_step(self, batch, batch_nb):
+        x, y = batch
+        de_out = self.de_forward(x)
+        out = self.forward(x)
+        loss = self.loss(out, y)
+
+        # calculate acc
+        labels_hat = torch.argmax(out, dim=1)
+        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
+
+        # return whatever you need for the collation function validation_end
+        output = {
+            'test_loss': loss,
+            'test_acc': torch.tensor(test_acc), # everything must be a tensor
+            'de_out': de_out,
+            'label': y
+        }
+
+        return output
+
+    def test_end(self, outputs):
+        whole_de_data = torch.cat([x['de_out'] for x in outputs], dim=0)
+        whole_test_label = torch.cat([x['label'] for x in outputs], dim=0)
+        #logger
+        if self.logger:
+            self.logger.experiment.add_embedding(whole_de_data, whole_test_label, tag='C-MODE-de-out data')
+
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
+        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):  # pragma: no cover
+        parser = argparse.ArgumentParser(parents=[parent_parser])
+        parser.add_argument('--num-epochs', default=90, type=int, metavar='N',
+                            help='number of total epochs to run')
+        parser.add_argument('--arch', default='Conv_ModeNN', type=str,
+                            help='networ architecture')
+        parser.add_argument('--backbone', default='resnet18', type=str, 
+                            help='resnet architecture')
+        parser.add_argument('--seed', type=int, default=None,
+                            help='seed for initializing training. ')
+        parser.add_argument('-b', '--batch-size', default=256, type=int,
+                            metavar='N',
+                            help='mini-batch size (default: 256), this is the total '
+                                 'batch size of all GPUs on the current node when '
+                                 'using Data Parallel or Distributed Data Parallel')
+        parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                            metavar='LR', help='initial learning rate', dest='lr')
+        parser.add_argument('--lr-milestones', nargs='+', type=int,
+                                help='learning rate milestones')
+        parser.add_argument('--lr-gamma', default=0.1, type=float,
+                            help='number learning rate multiplied when reach the lr-milestones')
+        parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                            help='momentum')
+        parser.add_argument('--nesterov', dest='nesterov', action='store_true',
+                            help='use nesterov in SGD')
+        parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
+                            metavar='W', help='weight decay (default: 1e-4)',
+                            dest='weight_decay')
+        parser.add_argument('--num-classes', default=None, type=int,
+                                help='number of the total classes')
+        parser.add_argument('--input-size', nargs='+', type=int,
+                                help='size of input data, return as list')
+        parser.add_argument('--opt', default='SGD', type=str,
+                                help='optimizer to use')
+        parser.add_argument('--augmentation', action='store_true',
+                               help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
+        parser.add_argument('--val-split', default=None, type=float,
+                                help='how much data to split as the val data, now it refers to ORL dataset')
+        #parasm in modenn
+        parser.add_argument('--order', default=2, type=int,
+                                help='order of Mode')
+        parser.add_argument('--de-dropout', default=0, type=float,
+                                help='the rate of the de-dropout')
+        return parser
+
 
 
 class Conv_ModeNN(BaseModel):
