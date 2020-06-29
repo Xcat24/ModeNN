@@ -17,6 +17,8 @@ class ModeNN(BaseModel):
             self.input_size = torch.tensor(self.hparams.input_size).prod().item()
         else:
             self.input_size = self.hparams.input_size[0]
+        if self.hparams.pooling:
+            self.input_size //= (self.hparams.pooling*self.hparams.pooling)
 
         print('{} order Descartes Extension'.format(self.hparams.order))
         DE_dim = compute_mode_dim([self.input_size for _ in range(self.hparams.order-1)]) + self.input_size
@@ -38,6 +40,8 @@ class ModeNN(BaseModel):
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
+        if self.hparams.pooling:
+            x = torch.nn.MaxPool2d(2)(x)
         origin = torch.flatten(x, 1)
         out = self.de_layer(origin)
         de_out = torch.cat([origin, out], dim=-1)
@@ -170,6 +174,8 @@ class ModeNN(BaseModel):
                                help='whether to use normalization layer')
         parser.add_argument('--de-relu', action='store_true',
                                help='whether to use a relu after normalization layer on de data')
+        parser.add_argument('--pooling',default=0, type=int,
+                               help='whether to decrease dimentions first')
         parser.add_argument('--val-split', default=None, type=float,
                                 help='how much data to split as the val data')
         return parser
