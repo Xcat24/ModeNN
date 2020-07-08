@@ -3,6 +3,7 @@ import random
 import argparse
 import logging as log
 from matplotlib import pyplot as plt
+import wandb
 import numpy as np
 import torch
 import torch.nn as nn
@@ -14,8 +15,9 @@ from torchsummary import summary
 import mymodels
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, Callback
-from pytorch_lightning.loggers import TestTubeLogger, TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from myutils.utils import pick_edge, Pretrain_Select, find_polyitem, kernel_heatmap
+from myutils.datasets import train_dataloader, val_dataloader, test_dataloader, gray_cifar_train_dataloader, gray_cifar_val_dataloader
 
 
 # Device configuration
@@ -25,47 +27,12 @@ torch.backends.cudnn.enabled = True
 
 #================================= Read Setting End ===================================
 
-# model = MyModel.MyCNN_MODENN(input_size=input_size[2:], in_channel=in_channel, out_channel=out_channel, kernel_size=kernel_size, num_classes=num_classes, pool_shape=(2,2),
-#                             order=order, padding=1, norm=norm, dropout=dropout, dataset=dataset, learning_rate=learning_rate, weight_decay=weight_decay, output_debug=False)
-
-
-# model = MyModel.CIFARConv_MODENN(input_size=input_size[2:], in_channel=in_channel, layer_num=layer_num, pooling='Max',
-#                          dense_node=dense_node, kernel_size=kernel_size, num_classes=num_classes, order=order, padding=1, norm=norm,
-#                          dropout=dropout, dataset=dataset)
-
-# model = MyModel.SLCNN(input_size=input_size[2:], in_channel=in_channel, stride=1, pooling='Max', pool_shape=(4,4), learning_rate=learning_rate, 
-#                          weight_decay=weight_decay, num_classes=num_classes, padding=1, norm=norm, dropout=dropout, dataset=dataset)
-
-# model = MyModel.SLCNN_MODENN(input_size=input_size[2:], in_channel=in_channel, stride=1, pooling='Max', pool_shape=(4,4), learning_rate=learning_rate, 
-                        #  weight_decay=weight_decay, num_classes=num_classes, order=order, padding=1, norm=norm, dropout=dropout, dataset=dataset)
-
-# model = MyModel.NoHiddenBase(input_size=input_size[1:], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
-
-# model = MyModel.Select_MODE(input_size=input_size[-1], model_path=pretrain_model, order_dim=[300, 55, 25, 15], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
-
-
-# model = MyModel.OneHiddenBase(input_size=input_size[1:], learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes, norm=norm, dropout=dropout, dataset=dataset)
-
-# model = MyModel.Pretrain_5MODENN(num_classes=num_classes,bins_size=9, bins_num=35,
-#                      dropout=None, learning_rate=learning_rate,weight_decay=weight_decay, loss=nn.CrossEntropyLoss(),
-#                      dataset=dataset)
-
-# model = MyModel.resnext29(input_size=input_size[2:], in_channel=in_channel, num_classes=num_classes, dataset=dataset)
-
-# model = MyModel.resnet18(num_classes=num_classes, dataset=dataset)
-
-# model = MyModel.wide_resnet(depth=28, width=10, dropout=dropout, learning_rate=learning_rate, weight_decay=weight_decay, num_classes=num_classes,dataset=dataset)
-
-# model = MyModel.C_MODENN(input_size=input_size[1:], in_channel=in_channel, out_channel=out_channel, order=order, num_classes=num_classes, share_fc_weights=share_fc_weights,
-#                          norm=norm, learning_rate=learning_rate, weight_decay=weight_decay, dataset=dataset, log_weight=0, lr_milestones=lr_milestones)
-
-
 class LogCallback(Callback):
-    def on_fit_start(self, trainer, pl_module):
+    def on_fit_start(self, trainer):
         """Called when the fit begins."""
         pass
     
-    def on_fit_end(self, trainer, pl_module):
+    def on_fit_end(self, trainer):
         """Called when the fit ends."""
         pass
 
@@ -143,12 +110,13 @@ class LogCallback(Callback):
 
         #draw final weight heatmap in tensorboard
         if pl_module.hparams.log_weight_heatmap:
-            log.info('drawing final conv/fc weight heatmap in tensorboard...')
+            log.info('drawing final conv/fc weight heatmap in wandb...')
             for name, para in pl_module.named_parameters():
                 if 'weight' in name:
                     f = kernel_heatmap(para, name)
                     if f:
-                        pl_module.logger.experiment.add_figure('final_'+name, f)
+                        pl_module.logger[0].experiment.log({"examples": [wandb.Image(f, caption='final_'+name)]})
+                        # pl_module.logger[0].experiment.add_image('final_'+name, f, 0)
 
 
         log.info('training completed!')
@@ -176,10 +144,14 @@ def get_args():
                                 help='whether to use early stop callback')
     parent_parser.add_argument('--patience', default=50, type=int, 
                                 help='the patience set in early stop callback')
-    parent_parser.add_argument('--is-tensorboard', action='store_true',
+    parent_parser.add_argument('--is-wandb-logger', action='store_true',
+                                help='whether to use wandb')
+    parent_parser.add_argument('--run-name', type=str,
+                               help='the name of this run')
+    parent_parser.add_argument('--is-tb-logger', action='store_true',
                                 help='whether to use tensorboard')
-    parent_parser.add_argument('--log-dir', type=str,
-                               help='path to save log')
+    parent_parser.add_argument('--wandb-dir', type=str,
+                               help='path to save wandb log')
     parent_parser.add_argument('--tb-dir', type=str,
                                help='path to save tensorboard')
     parent_parser.add_argument('--is-checkpoint', action='store_true',
@@ -190,6 +162,8 @@ def get_args():
                                help='dataset to use')
     parent_parser.add_argument('--data-dir', type=str,
                                help='path to dataset')
+    parent_parser.add_argument('--augmentation', action='store_true',
+                               help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
     parent_parser.add_argument('--save-path', default=".", type=str,
                                help='path to save output')
     parent_parser.add_argument('--pretrained', default=None, type=str,
@@ -198,11 +172,11 @@ def get_args():
                                help='how many gpus')
     parent_parser.add_argument('--log-gpu', action='store_true',
                                help='whether to log gpu usage')
-    parent_parser.add_argument('--bar', action='store_true',
-                               help='if true print progress bar')
+    parent_parser.add_argument('--bar', type=int, default=1,
+                               help='refresh rate of the progress bar')
     parent_parser.add_argument('--distributed-backend', type=str, default='dp', choices=('dp', 'ddp', 'ddp2'),
                                help='supports three options dp, ddp, ddp2')
-    parent_parser.add_argument('--use-16bit', dest='use_16bit', action='store_true',
+    parent_parser.add_argument('--precision', dest='precision', default=32, type=int,
                                help='if true uses 16 bit precision')
     parent_parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                                help='evaluate model on validation set')
@@ -216,6 +190,10 @@ def get_args():
                                help='whether to log final conv/fc weight heatmap in tensorboard')
     parent_parser.add_argument('--net', default='wide_resnet', type=str, 
                                 help='network architecture module to load')
+    parent_parser.add_argument('-b', '--batch-size', default=256, type=int, metavar='N',
+                                help='mini-batch size (default: 256), this is the total '
+                                 'batch size of all GPUs on the current node when '
+                                 'using Data Parallel or Distributed Data Parallel')
     
     args, unknown = parent_parser.parse_known_args()
 
@@ -224,8 +202,14 @@ def get_args():
 
 
 def main(hparams):
+    train_data = gray_cifar_train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
+    val_data = gray_cifar_val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
+    # train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
+    # val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
+    # test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
     model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
-
+    # model = mymodels.BaseModel(hparams, nn.CrossEntropyLoss())
+    print(model)
     if hparams.pretrained:
         state_dict = torch.load(hparams.pretrained)['state_dict']
         for name, para in model.named_parameters():
@@ -234,12 +218,12 @@ def main(hparams):
                     para.copy_(state_dict[name])
                 para.requires_grad = False
     
-    summary(model, input_size=tuple(hparams.input_size), device='cpu')
+    # summary(model, input_size=tuple(hparams.input_size), device='cpu')
 
-    if hparams.seed is not None:
-        random.seed(hparams.seed)
-        torch.manual_seed(hparams.seed)
-        cudnn.deterministic = True
+    # if hparams.seed is not None:
+    #     random.seed(hparams.seed)
+    #     torch.manual_seed(hparams.seed)
+    #     cudnn.deterministic = True
     if hparams.is_early_stop:
         early_stop_callback = EarlyStopping(
             monitor='val_acc',
@@ -249,7 +233,7 @@ def main(hparams):
             mode='auto'
         )
     else:
-        early_stop_callback = None
+        early_stop_callback = False
 
     if hparams.is_checkpoint:
         checkpoint_callback = ModelCheckpoint(
@@ -260,16 +244,21 @@ def main(hparams):
             mode='max'
         )
     else:
-        checkpoint_callback = None
+        checkpoint_callback = False
 
-    if hparams.is_tensorboard:
-        tb_logger = TestTubeLogger(
-            save_dir=hparams.log_dir,
-            name=hparams.tb_dir
+    loggers = []
+            
+    if hparams.is_wandb_logger:    
+        wandb_logger = WandbLogger(name=hparams.run_name, project='modenn', save_dir=hparams.wandb_dir)#, offline=True)
+        loggers.append(wandb_logger)  
+
+    if hparams.is_tb_logger:
+        tb_logger = TensorBoardLogger(
+            save_dir=hparams.tb_dir,
+            name=hparams.run_name
             )
-    else:
-        tb_logger = False
-        
+        loggers.append(tb_logger)
+    
     callbacks = [LogCallback()]
 
     trainer = Trainer(
@@ -281,11 +270,12 @@ def main(hparams):
         fast_dev_run=False, #activate callbacks, everything but only with 1 training and 1 validation batch
         gradient_clip_val=0,  #this will clip the gradient norm computed over all model parameters together
         track_grad_norm=-1,  #Looking at grad norms
-        use_amp=hparams.use_16bit,
+        precision=hparams.precision,
+        auto_lr_find=False,
         # print_nan_grads=True,
         checkpoint_callback=checkpoint_callback,
-        logger=tb_logger,
-        show_progress_bar=hparams.bar,
+        logger=loggers,
+        progress_bar_refresh_rate=hparams.bar,
         # row_log_interval=80,
         # log_save_interval=80,
         early_stop_callback=early_stop_callback,
@@ -295,9 +285,9 @@ def main(hparams):
     if hparams.evaluate:
         trainer.run_evaluation()
     else:
-        trainer.fit(model)
+        trainer.fit(model, train_data, val_data)
     if hparams.test:
-        trainer.test()
+        trainer.test(test_dataloader)
 
 
 if __name__ == '__main__':

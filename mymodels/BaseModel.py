@@ -6,15 +6,18 @@ from collections import OrderedDict
 import torchvision
 import torchvision.transforms as transforms
 from torch import nn
-import pytorch_lightning as pl
+from pytorch_lightning.core.lightning import LightningModule
 from torch.utils.data import Dataset, DataLoader
 from myutils.datasets import ORLdataset, NumpyDataset
 
-class BaseModel(pl.LightningModule):
+class BaseModel(LightningModule):
     def __init__(self, hparams, loss):
         super(BaseModel, self).__init__()
         self.hparams = hparams
         self.loss = loss
+
+    def forward(self, *args, **kwargs):
+        return super().forward(*args, **kwargs)
 
     def training_step(self, batch, batch_nb):
         x, y = batch
@@ -53,7 +56,7 @@ class BaseModel(pl.LightningModule):
 
         return output
 
-    def validation_end(self, outputs):
+    def validation_epoch_end(self, outputs):
         val_loss_mean = 0
         val_acc_mean = 0
         for output in outputs:
@@ -107,108 +110,7 @@ class BaseModel(pl.LightningModule):
             'progress_bar': tqdm_dict,
             'log': {'test_acc': avg_acc.item()}
         }
-    
-    def optimizer_step(self, epoch_nb, batch_nb, optimizer, optimizer_i, second_order_closure=None):
-        """
-        Do something instead of the standard optimizer behavior
-        :param epoch_nb:
-        :param batch_nb:
-        :param optimizer:
-        :param optimizer_i:
-        :return:
-        """
-        if isinstance(optimizer, torch.optim.LBFGS):
-            optimizer.step(second_order_closure)
-        else:
-            optimizer.step()
-
-        self.on_before_zero_grad(optimizer)
-        # clear gradients
-        optimizer.zero_grad()
-
-
-    def train_dataloader(self):
-        log.info('Training data loader called.')
-        if self.hparams.dataset == 'MNIST':
-            train_dataset = torchvision.datasets.MNIST(root=self.hparams.data_dir,
-                                                    train=True,
-                                                    transform=transforms.ToTensor(),
-                                                    download=True)
-        elif self.hparams.dataset == 'ORL':
-            train_dataset = ORLdataset(train=True,
-                                        root_dir=self.hparams.data_dir,
-                                        transform=transforms.Compose([transforms.Resize(resize), transforms.ToTensor()]),
-                                        val_split=self.dataset['val_split'])
-        elif self.hparams.dataset == 'CIFAR10':
-            if self.hparams.augmentation:
-                train_transform = transforms.Compose([
-                    transforms.RandomCrop(32, padding=4),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.ToTensor(),
-                    transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)
-                ])
-            else:
-                train_transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)])
-            train_dataset = torchvision.datasets.CIFAR10(root=self.hparams.data_dir,
-                                                    train=True,
-                                                    transform=train_transform, #self.dataset['transform'],
-                                                    download=True)
-        elif self.hparams.dataset == 'NUMPY':
-            train_dataset = NumpyDataset(root_dir=self.hparams.data_dir, train=True)
-
-        # Data loader
-        return torch.utils.data.DataLoader(dataset=train_dataset,
-                                                batch_size=self.hparams.batch_size,
-                                                shuffle=True)
-
-
-    def val_dataloader(self):
-        log.info('Valuating data loader called.')
-        if self.hparams.dataset == 'MNIST':
-            # MNIST dataset
-            val_dataset = torchvision.datasets.MNIST(root=self.hparams.data_dir,
-                                                    train=False,
-                                                    transform=transforms.ToTensor())
-        elif self.hparams.dataset == 'ORL':
-            val_dataset = ORLdataset(train=False,
-                                        root_dir=self.hparams.data_dir,
-                                        transform=transforms.Compose([transforms.Resize(resize), transforms.ToTensor()]),
-                                        val_split=self.dataset['val_split'])
-        elif self.hparams.dataset == 'CIFAR10':
-            val_dataset = torchvision.datasets.CIFAR10(root=self.hparams.data_dir,
-                                                    train=False,
-                                                    transform=transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)]))
-
-        elif self.hparams.dataset == 'NUMPY':
-            val_dataset = NumpyDataset(root_dir=self.hparams.data_dir, train=False)
-
-        return torch.utils.data.DataLoader(dataset=val_dataset,
-                                                batch_size=self.hparams.batch_size,
-                                                shuffle=False)
-
-
-    def test_dataloader(self):
-        if self.hparams.dataset == 'MNIST':
-            # MNIST dataset
-            test_dataset = torchvision.datasets.MNIST(root=self.hparams.data_dir,
-                                                    train=False,
-                                                    transform=transforms.ToTensor())
-        elif self.hparams.dataset == 'ORL':
-            test_dataset = ORLdataset(train=False,
-                                        root_dir=self.hparams.data_dir,
-                                        transform=transforms.Compose([transforms.Resize(resize), transforms.ToTensor()]),
-                                        val_split=self.dataset['val_split'])
-        elif self.hparams.dataset == 'CIFAR10':
-            test_dataset = torchvision.datasets.CIFAR10(root=self.hparams.data_dir,
-                                                    train=False,
-                                                    transform=transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)]))
-        elif self.hparams.dataset == 'NUMPY':
-            test_dataset = NumpyDataset(root_dir=self.hparams.data_dir, train=False)
-
-        return torch.utils.data.DataLoader(dataset=test_dataset,
-                                                batch_size=self.hparams.batch_size,
-                                                shuffle=False)
-    
+     
     @staticmethod
     def add_model_specific_args(parent_parser):  # pragma: no cover
         parser = argparse.ArgumentParser(parents=[parent_parser])

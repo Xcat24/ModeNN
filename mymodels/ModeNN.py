@@ -71,7 +71,7 @@ class ModeNN(BaseModel):
         opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=self.hparams.nesterov)
         return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
 
-    def validation_end(self, outputs):
+    def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
         tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
@@ -138,13 +138,8 @@ class ModeNN(BaseModel):
                             help='networ architecture')
         parser.add_argument('--seed', type=int, default=None,
                             help='seed for initializing training. ')
-        parser.add_argument('-b', '--batch-size', default=256, type=int,
-                            metavar='N',
-                            help='mini-batch size (default: 256), this is the total '
-                                 'batch size of all GPUs on the current node when '
-                                 'using Data Parallel or Distributed Data Parallel')
         parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
-                            metavar='LR', help='initial learning rate', dest='lr')
+                            help='initial learning rate', dest='lr')
         parser.add_argument('--lr-milestones', nargs='+', type=int,
                                 help='learning rate milestones')
         parser.add_argument('--lr-gamma', default=0.1, type=float,
@@ -168,8 +163,6 @@ class ModeNN(BaseModel):
                                 help='dims of input data, return list')
         parser.add_argument('--order', default=2, type=int,
                                 help='order of Mode')
-        parser.add_argument('--augmentation', action='store_true',
-                               help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
         parser.add_argument('--norm', action='store_true',
                                help='whether to use normalization layer')
         parser.add_argument('--de-relu', action='store_true',

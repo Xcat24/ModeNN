@@ -87,11 +87,7 @@ class MLP(BaseModel):
                             help='network architecture')
         parser.add_argument('--seed', type=int, default=None,
                             help='seed for initializing training. ')
-        parser.add_argument('-b', '--batch-size', default=256, type=int,
-                            metavar='N',
-                            help='mini-batch size (default: 256), this is the total '
-                                 'batch size of all GPUs on the current node when '
-                                 'using Data Parallel or Distributed Data Parallel')
+        
         parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                             metavar='LR', help='initial learning rate', dest='lr')
         parser.add_argument('--lr-milestones', nargs='+', type=int,
@@ -113,8 +109,6 @@ class MLP(BaseModel):
                                 help='size of input data, return as list')
         parser.add_argument('--opt', default='SGD', type=str,
                                 help='optimizer to use')
-        parser.add_argument('--augmentation', action='store_true',
-                               help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
         parser.add_argument('--val-split', default=None, type=float,
                                 help='how much data to split as the val data, now it refers to ORL dataset')
         parser.add_argument('--dense-nodes', nargs='+', type=int,

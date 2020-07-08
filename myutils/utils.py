@@ -71,7 +71,7 @@ def kernel_weight_to_visual_numpy(w):
         w = torch.sum(w, dim=1)
         return w.reshape((w.shape[0],-1)).to('cpu').detach().numpy().T
     elif len(w.shape) == 2:
-        return w.to('cpu').numpy()
+        return w.to('cpu').detach().numpy()
     else:
         return None
 

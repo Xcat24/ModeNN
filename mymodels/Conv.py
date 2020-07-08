@@ -90,7 +90,7 @@ class MyConv2D(BaseModel):
             if self.hparams.basic_mode == 'single':
                 layers.append(single_conv_basic(self.hparams.out_channels[_-1], self.hparams.out_channels[_], self.hparams.dropout, 3, self.hparams.stride))
             elif self.hparams.basic_mode == 'double':
-                layer.append(double_conv_basic(self.hparams.out_channels[_-1], self.hparams.out_channels[_], self.hparams.dropout, 3, self.hparams.stride))
+                layers.append(double_conv_basic(self.hparams.out_channels[_-1], self.hparams.out_channels[_], self.hparams.dropout, 3, self.hparams.stride))
 
         return nn.Sequential(*layers)
 
