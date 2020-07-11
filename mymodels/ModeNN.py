@@ -184,8 +184,11 @@ class RandomModeNN(BaseModel):
         if self.hparams.pooling:
             self.input_size //= (self.hparams.pooling*self.hparams.pooling)
 
-
-        DE_dim = torch.sum(torch.tensor(self.hparams.output_dim)).item() + self.input_size
+        if hparams.full_sec_order:
+            DE_dim = compute_mode_dim(self.input_size, 2) + torch.sum(torch.tensor(self.hparams.output_dim)).item() + self.input_size
+            self.sec_order_de = Mode(order_dim=[self.input_size])
+        else:
+            DE_dim = torch.sum(torch.tensor(self.hparams.output_dim)).item() + self.input_size
 
         self.de_layer = RandomDE(order=self.hparams.order, input_dim=self.input_size, output_dim=self.hparams.output_dim)
 
@@ -206,8 +209,13 @@ class RandomModeNN(BaseModel):
         if self.hparams.pooling:
             x = torch.nn.MaxPool2d(2)(x)
         origin = torch.flatten(x, 1)
-        out = self.de_layer(origin)
-        de_out = torch.cat([origin, out], dim=-1)
+        if self.hparams.full_sec_order:
+            high_order_out = self.de_layer(origin)
+            sec_order_out = self.sec_order_de(origin)
+            de_out = torch.cat([origin, sec_order_out, high_order_out], dim=-1)
+        else:
+            out = self.de_layer(origin)
+            de_out = torch.cat([origin, out], dim=-1)
 
         if self.hparams.norm:
             de_out = self.norm_layer(de_out)
@@ -324,6 +332,8 @@ class RandomModeNN(BaseModel):
                                 help='number of the total classes')
         parser.add_argument('--input-size', nargs='+', type=int,
                                 help='dims of input data, return list')
+        parser.add_argument('--full-sec-order', dest='full_sec_order', action='store_true',
+                            help='whether to use all 2 order DE terms')
         parser.add_argument('--order', nargs='+', type=int,
                                 help='order of Mode')
         parser.add_argument('--output-dim', nargs='+', type=int,
