@@ -188,6 +188,8 @@ def get_args():
                                help='whether to log final fc weight figure in tensorboard')
     parent_parser.add_argument('--log-weight-heatmap', action='store_true',
                                help='whether to log final conv/fc weight heatmap in tensorboard')
+    parent_parser.add_argument('--gray-scale', action='store_true',
+                               help='whether to turn picture to gray')
     parent_parser.add_argument('--net', default='wide_resnet', type=str, 
                                 help='network architecture module to load')
     parent_parser.add_argument('-b', '--batch-size', default=256, type=int, metavar='N',
@@ -202,11 +204,13 @@ def get_args():
 
 
 def main(hparams):
-    train_data = gray_cifar_train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
-    val_data = gray_cifar_val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
-    # train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
-    # val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
-    # test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
+    if hparams.gray_scale:
+        train_data = gray_cifar_train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
+        val_data = gray_cifar_val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
+    else:
+        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
+        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
+        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
     model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
     # model = mymodels.BaseModel(hparams, nn.CrossEntropyLoss())
     print(model)
