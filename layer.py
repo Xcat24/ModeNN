@@ -19,6 +19,34 @@ class DescartesExtension(nn.Module):
         else:
             raise ValueError("the dimension of input tensor is expected 1 or 2")
 
+class RandomDE(nn.Module):
+    def __init__(self, order=[2,], input_dim=784, output_dim=[64,]):
+        super().__init__()
+        self.training = False
+        self.order = order
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.idx = [torch.randint(input_dim, (output_dim[_], order[_])) for _ in range(len(order))]
+        # print(self.idx)
+
+    def compute_order(self, x, order, input_dim, output_dim, idx):
+        if x.dim() == 1:
+            if torch.cuda.is_available():
+                idx = idx.cuda()
+            select_terms = torch.stack([torch.prod(torch.index_select(x,dim=0,index=idx[i])) for i in range(output_dim)])
+            return select_terms
+        elif x.dim() == 2:
+            if torch.cuda.is_available():
+                idx = idx.cuda()
+            select_terms = torch.stack([torch.prod(torch.index_select(x,dim=1,index=idx[i]), dim=1) for i in range(output_dim)], dim=1)
+            return select_terms
+        else:
+            raise ValueError("the dimension of input tensor is expected 1 or 2")
+    
+    def forward(self, x):
+        de_out = [self.compute_order(x, self.order[i], self.input_dim, self.output_dim[i], self.idx[i]) for i in range(len(self.output_dim))]
+        return torch.cat(de_out, dim=-1)
+
 class LocalDE(nn.Module):
     def __init__(self, order=2, kernel_size=(3,3)):
         super(LocalDE, self).__init__()
@@ -133,8 +161,12 @@ class MaskLayer(nn.Module):
 
 if __name__ == "__main__":
     import torchvision
-    from myutils.utils import Pretrain_Select
-    x = torchvision.datasets.MNIST(root='/disk/Dataset/', train=True, transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor(), 
-                                                                                                                Pretrain_Select('/disk/Log/torch/model/NoHiddenBase_MNIST/_ckpt_epoch_69.ckpt')]))
-    m = Mode()
-    print(m(x.__getitem__(1)[0]).shape)
+
+    x = torch.arange(24).reshape((3,8))
+    y = torch.rand((3,8))
+    print(x)
+    print(y)
+    m = RandomDE(order=[2,3], input_dim=8, output_dim=[6,8])
+    output = m(x)
+    print(output)
+    print(m(y))

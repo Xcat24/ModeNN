@@ -1,6 +1,7 @@
 import torch
 import torchvision
 import os
+import logging as log
 import pandas as pd
 import numpy as np
 from PIL import Image
@@ -63,6 +64,126 @@ class ORLdataset(Dataset):
 
         return sample
 
+def gray_cifar_train_dataloader(dataset, data_dir, batch_size, num_workers=4):
+    train_transform = transforms.Compose([
+                transforms.Grayscale(),
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(120.7 / 255.0, 63.9 / 255.0)
+            ])
+    train_dataset = torchvision.datasets.CIFAR10(root=data_dir,
+                                                train=True,
+                                                transform=train_transform, #self.dataset['transform'],
+                                                download=True)
+    return torch.utils.data.DataLoader(dataset=train_dataset,
+                                            batch_size=batch_size,
+                                            shuffle=True,
+                                            num_workers=num_workers,
+                                            pin_memory=True)
+
+def gray_cifar_val_dataloader(dataset, data_dir, batch_size, num_workers=4):
+    val_transform = transforms.Compose([
+                transforms.Grayscale(),
+                transforms.ToTensor(),
+                transforms.Normalize(120.7 / 255.0, 63.9 / 255.0)])
+    val_dataset = torchvision.datasets.CIFAR10(root=data_dir,
+                                                train=False,
+                                                transform=val_transform)
+    return torch.utils.data.DataLoader(dataset=val_dataset,
+                                            batch_size=batch_size,
+                                            shuffle=False,
+                                            num_workers=num_workers,
+                                            pin_memory=True)
+
+
+def train_dataloader(dataset, data_dir, batch_size, num_workers=4, augmentation=True):
+    log.info('Training data loader called.')
+    if dataset == 'MNIST':
+        train_dataset = torchvision.datasets.MNIST(root=data_dir,
+                                                train=True,
+                                                transform=transforms.ToTensor(),
+                                                download=True)
+    elif dataset == 'ORL':
+        train_dataset = ORLdataset(train=True,
+                                    root_dir=data_dir,
+                                    transform=transforms.Compose([transforms.Resize(resize), transforms.ToTensor()]),
+                                    val_split=dataset['val_split'])
+    elif dataset == 'CIFAR10':
+        if augmentation:
+            train_transform = transforms.Compose([
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)
+            ])
+        else:
+            train_transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)])
+        train_dataset = torchvision.datasets.CIFAR10(root=data_dir,
+                                                train=True,
+                                                transform=train_transform, #self.dataset['transform'],
+                                                download=True)
+    elif dataset == 'NUMPY':
+        train_dataset = NumpyDataset(root_dir=data_dir, train=True)
+
+    # Data loader
+    return torch.utils.data.DataLoader(dataset=train_dataset,
+                                            batch_size=batch_size,
+                                            shuffle=True,
+                                            num_workers=num_workers,
+                                            pin_memory=True)
+
+
+def val_dataloader(dataset, data_dir, batch_size, num_workers=4):
+    log.info('Valuating data loader called.')
+    if dataset == 'MNIST':
+        # MNIST dataset
+        val_dataset = torchvision.datasets.MNIST(root=data_dir,
+                                                train=False,
+                                                transform=transforms.ToTensor())
+    elif dataset == 'ORL':
+        val_dataset = ORLdataset(train=False,
+                                    root_dir=data_dir,
+                                    transform=transforms.Compose([transforms.Resize(resize), transforms.ToTensor()]),
+                                    val_split=dataset['val_split'])
+    elif dataset == 'CIFAR10':
+        val_dataset = torchvision.datasets.CIFAR10(root=data_dir,
+                                                train=False,
+                                                transform=transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)]))
+
+    elif dataset == 'NUMPY':
+        val_dataset = NumpyDataset(root_dir=data_dir, train=False)
+
+    return torch.utils.data.DataLoader(dataset=val_dataset,
+                                            batch_size=batch_size,
+                                            shuffle=False,
+                                            num_workers=num_workers,
+                                            pin_memory=True)
+
+
+def test_dataloader(dataset, data_dir, batch_size, num_workers=4):
+    if dataset == 'MNIST':
+        # MNIST dataset
+        test_dataset = torchvision.datasets.MNIST(root=data_dir,
+                                                train=False,
+                                                transform=transforms.ToTensor())
+    elif dataset == 'ORL':
+        test_dataset = ORLdataset(train=False,
+                                    root_dir=data_dir,
+                                    transform=transforms.Compose([transforms.Resize(resize), transforms.ToTensor()]),
+                                    val_split=dataset['val_split'])
+    elif dataset == 'CIFAR10':
+        test_dataset = torchvision.datasets.CIFAR10(root=data_dir,
+                                                train=False,
+                                                transform=transforms.Compose([transforms.ToTensor(),transforms.Normalize(np.array([125.3, 123.0, 113.9]) / 255.0, np.array([63.0, 62.1, 66.7]) / 255.0)]))
+    elif dataset == 'NUMPY':
+        test_dataset = NumpyDataset(root_dir=data_dir, train=False)
+
+    return torch.utils.data.DataLoader(dataset=test_dataset,
+                                            batch_size=batch_size,
+                                            shuffle=False,
+                                            num_workers=num_workers,
+                                            pin_memory=True)
 
 if __name__ == '__main__':
     #test
