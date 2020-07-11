@@ -16,7 +16,8 @@ import mymodels
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, Callback
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
-from myutils.utils import pick_edge, Pretrain_Select, find_polyitem, kernel_heatmap, LogCallback
+from myutils.utils import pick_edge, Pretrain_Select, find_polyitem, kernel_heatmap
+from myutils.callback import LogCallback
 from myutils.datasets import train_dataloader, val_dataloader, test_dataloader, gray_cifar_train_dataloader, gray_cifar_val_dataloader
 
 
