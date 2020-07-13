@@ -59,6 +59,8 @@ def get_args():
                                help='path to the saved modal')
     parent_parser.add_argument('--gpus', type=int, default=1,
                                help='how many gpus')
+    parent_parser.add_argument('--num-workers', type=int, default=4,
+                               help='how many cpu kernels to use')
     parent_parser.add_argument('--log-gpu', action='store_true',
                                help='whether to log gpu usage')
     parent_parser.add_argument('--bar', type=int, default=1,
@@ -94,12 +96,12 @@ def get_args():
 
 def main(hparams):
     if hparams.gray_scale:
-        train_data = gray_cifar_train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
-        val_data = gray_cifar_val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
+        train_data = gray_cifar_train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
+        val_data = gray_cifar_val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
     else:
-        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
-        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
-        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size)
+        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
+        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
+        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
     model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
     # model = mymodels.BaseModel(hparams, nn.CrossEntropyLoss())
     print(model)
@@ -165,6 +167,7 @@ def main(hparams):
         track_grad_norm=-1,  #Looking at grad norms
         precision=hparams.precision,
         auto_lr_find=False,
+        distributed_backend='ddp',
         # print_nan_grads=True,
         checkpoint_callback=checkpoint_callback,
         logger=loggers,

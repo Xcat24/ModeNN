@@ -64,7 +64,7 @@ class ORLdataset(Dataset):
 
         return sample
 
-def gray_cifar_train_dataloader(dataset, data_dir, batch_size, num_workers=4):
+def gray_cifar_train_dataloader(dataset, data_dir, batch_size, num_workers):
     train_transform = transforms.Compose([
                 transforms.Grayscale(),
                 transforms.RandomCrop(32, padding=4),
@@ -82,7 +82,7 @@ def gray_cifar_train_dataloader(dataset, data_dir, batch_size, num_workers=4):
                                             num_workers=num_workers,
                                             pin_memory=True)
 
-def gray_cifar_val_dataloader(dataset, data_dir, batch_size, num_workers=4):
+def gray_cifar_val_dataloader(dataset, data_dir, batch_size, num_workers):
     val_transform = transforms.Compose([
                 transforms.Grayscale(),
                 transforms.ToTensor(),
@@ -97,7 +97,7 @@ def gray_cifar_val_dataloader(dataset, data_dir, batch_size, num_workers=4):
                                             pin_memory=True)
 
 
-def train_dataloader(dataset, data_dir, batch_size, num_workers=4, augmentation=True):
+def train_dataloader(dataset, data_dir, batch_size, num_workers, augmentation=True):
     log.info('Training data loader called.')
     if dataset == 'MNIST':
         train_dataset = torchvision.datasets.MNIST(root=data_dir,
@@ -134,7 +134,7 @@ def train_dataloader(dataset, data_dir, batch_size, num_workers=4, augmentation=
                                             pin_memory=True)
 
 
-def val_dataloader(dataset, data_dir, batch_size, num_workers=4):
+def val_dataloader(dataset, data_dir, batch_size, num_workers):
     log.info('Valuating data loader called.')
     if dataset == 'MNIST':
         # MNIST dataset
@@ -161,7 +161,7 @@ def val_dataloader(dataset, data_dir, batch_size, num_workers=4):
                                             pin_memory=True)
 
 
-def test_dataloader(dataset, data_dir, batch_size, num_workers=4):
+def test_dataloader(dataset, data_dir, batch_size, num_workers):
     if dataset == 'MNIST':
         # MNIST dataset
         test_dataset = torchvision.datasets.MNIST(root=data_dir,
