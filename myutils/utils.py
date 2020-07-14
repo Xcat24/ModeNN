@@ -2,6 +2,7 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 import numpy as np
+import math
 import seaborn as sns
 from skimage import feature
 from skimage.color import rgb2gray
@@ -24,10 +25,10 @@ def compute_mode_dim(input_dim, order=None):
     if isinstance(input_dim, (list,tuple)):
         temp = 0
         for i in range(len(input_dim)):
-            temp += len(torch.combinations(torch.rand(input_dim[i]), i+2, with_replacement=True))
+            temp += (math.factorial(input_dim[i] + (i+2) - 1)) // (math.factorial(input_dim[i] - 1) * math.factorial(i+2))
         return temp
     else:
-        return len(torch.combinations(torch.rand(input_dim), order, with_replacement=True))
+        return (math.factorial(input_dim + order - 1)) // (math.factorial(input_dim - 1) * math.factorial(order))
 
 def Pretrain_Mask(model_path, weight_name='fc.weight', num=35*9):
     '''
