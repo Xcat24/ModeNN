@@ -57,7 +57,7 @@ def get_args():
                                help='path to save output')
     parent_parser.add_argument('--pretrained', default=None, type=str,
                                help='path to the saved modal')
-    parent_parser.add_argument('--gpus', type=str, default='0',
+    parent_parser.add_argument('--gpus', type=int, default=-1,
                                help='use which gpus')
     parent_parser.add_argument('--num-workers', type=int, default=1,
                                help='how many cpu kernels to use')
@@ -69,6 +69,8 @@ def get_args():
                                help='supports three options dp, ddp, ddp2')
     parent_parser.add_argument('--precision', dest='precision', default=32, type=int,
                                help='if true uses 16 bit precision')
+    parent_parser.add_argument('--use-amp', dest='use_amp', action='store_true',
+                               help='amp setting')
     parent_parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                                help='evaluate model on validation set')
     parent_parser.add_argument('-t', '--test', dest='test', action='store_true',
@@ -154,7 +156,7 @@ def main(hparams):
             )
         loggers.append(tb_logger)
     
-    callbacks = [LogCallback()]
+    # callbacks = [LogCallback()]
 
     trainer = Trainer(
         min_epochs=1,
@@ -168,6 +170,7 @@ def main(hparams):
         precision=hparams.precision,
         auto_lr_find=False,
         distributed_backend='ddp',
+        use_amp=hparams.use_amp,
         # print_nan_grads=True,
         checkpoint_callback=checkpoint_callback,
         logger=loggers,
@@ -175,7 +178,8 @@ def main(hparams):
         # row_log_interval=80,
         # log_save_interval=80,
         early_stop_callback=early_stop_callback,
-        callbacks=callbacks
+        # callbacks=callbacks,
+        profiler=True
         )
 
     if hparams.evaluate:

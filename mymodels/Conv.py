@@ -106,9 +106,12 @@ class MyConv2D(BaseModel):
 
     def forward(self, x):
         out = self.initconv(x)
+        if self.hparams.pooling:
+            out = F.max_pool2d(out, self.hparams.pool_shape)
         out = self.convs(out)
         out = F.relu(self.bn1(out))
-        out = F.avg_pool2d(out, self.hparams.pool_shape)
+        if self.hparams.pooling:
+            out = F.max_pool2d(out, self.hparams.pool_shape)
         # print(out.shape)
         out = out.view(out.size(0), -1)
         out = self.fc(out)
@@ -196,11 +199,6 @@ class MyConv2D(BaseModel):
                             help='networ architecture')
         parser.add_argument('--seed', type=int, default=None,
                             help='seed for initializing training. ')
-        parser.add_argument('-b', '--batch-size', default=256, type=int,
-                            metavar='N',
-                            help='mini-batch size (default: 256), this is the total '
-                                 'batch size of all GPUs on the current node when '
-                                 'using Data Parallel or Distributed Data Parallel')
         parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                             metavar='LR', help='initial learning rate', dest='lr')
         parser.add_argument('--lr-milestones', nargs='+', type=int,
@@ -216,16 +214,12 @@ class MyConv2D(BaseModel):
                             dest='weight_decay')
         parser.add_argument('--log-weight', default=0, type=int,
                                 help='log weight figure every x epoch')
-        parser.add_argument('--pretrained', dest='pretrained', action='store_true',
-                            help='use pre-trained model')
         parser.add_argument('--num-classes', default=None, type=int,
                                 help='number of the total classes')
         parser.add_argument('--input-size', nargs='+', type=int,
                                 help='size of input data, return as list')
         parser.add_argument('--opt', default='SGD', type=str,
                                 help='optimizer to use')
-        parser.add_argument('--augmentation', action='store_true',
-                               help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
         parser.add_argument('--val-split', default=None, type=float,
                                 help='how much data to split as the val data, now it refers to ORL dataset')
         #params in conv
@@ -241,6 +235,8 @@ class MyConv2D(BaseModel):
                                 help='numbers of dense layers nodels, return as list')
         parser.add_argument('--basic-mode', default='single', type=str,
                                 help='conv basic to use')
+        parser.add_argument('--pooling', dest='pooling', action='store_true',
+                                help='whether to use pooling after conv layer')
         parser.add_argument('--pool-shape', default=2, type=int,
                                 help='average pooling shape')
         parser.add_argument('--conv-outshape', default=1, type=int,
