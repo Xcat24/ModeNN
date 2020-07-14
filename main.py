@@ -57,9 +57,9 @@ def get_args():
                                help='path to save output')
     parent_parser.add_argument('--pretrained', default=None, type=str,
                                help='path to the saved modal')
-    parent_parser.add_argument('--gpus', type=int, default=1,
-                               help='how many gpus')
-    parent_parser.add_argument('--num-workers', type=int, default=4,
+    parent_parser.add_argument('--gpus', type=str, default='0',
+                               help='use which gpus')
+    parent_parser.add_argument('--num-workers', type=int, default=1,
                                help='how many cpu kernels to use')
     parent_parser.add_argument('--log-gpu', action='store_true',
                                help='whether to log gpu usage')
