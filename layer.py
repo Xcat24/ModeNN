@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
+from myutils.utils import compute_mode_dim
 
 
 class DescartesExtension(nn.Module):
@@ -48,19 +49,26 @@ class RandomDE(nn.Module):
         return torch.cat(de_out, dim=-1)
 
 class LocalDE(nn.Module):
-    def __init__(self, order=2, kernel_size=(3,3)):
+    ##TODO gradient overflow bug to be fixed
+    def __init__(self, order=2, kernel_size=(3,3), out_channel=16):
         super(LocalDE, self).__init__()
-        self.training = False
+        de_dim = compute_mode_dim(torch.prod(torch.tensor(kernel_size)).item(), order)
+        # self.weights = nn.Parameter(torch.randn(out_channel, de_dim))
+        self.weights = nn.Parameter(torch.randn(out_channel, kernel_size[0]*kernel_size[1]))
         self.unfold = nn.Unfold(kernel_size=kernel_size)
+
         self.de = DescartesExtension(order=order)
 
     def forward(self, x):
         if x.dim() != 4:
             raise ValueError("the dimension of input tensor is expected 4")
         x = self.unfold(x).transpose(1,2)
-        out = x.reshape(-1, x.size(-1))
-        out = self.de(out)
-        out = out.view(x.size(0), -1)
+        # out = x.reshape(-1, x.size(-1))
+        # out = self.de(out)
+        # out = out.view(x.size(0), x.size(1), -1)
+        # out = out.matmul(self.weights.t()).transpose(1,2)
+
+        out = x.matmul(self.weights.t()).transpose(1,2)
         return out
 
 class MaskDE(nn.Module):
@@ -162,11 +170,13 @@ class MaskLayer(nn.Module):
 if __name__ == "__main__":
     import torchvision
 
-    x = torch.arange(24).reshape((3,8))
-    y = torch.rand((3,8))
+    x = torch.arange(32).reshape((2,1,4,4)).float()
+    y = torch.rand((2,1,4,4))
     print(x)
     print(y)
-    m = RandomDE(order=[2,3], input_dim=8, output_dim=[6,8])
+    m = LocalDE(order=2, kernel_size=(3,3), out_channel=16)
     output = m(x)
+    output[0,0,0].backward()
+    m.weights.grad()
     print(output)
     print(m(y))
