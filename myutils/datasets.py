@@ -64,6 +64,20 @@ class ORLdataset(Dataset):
 
         return sample
 
+class SVD_transform(object):
+    def __call__(self, sample):
+        u,s,v = torch.svd(sample)
+        return s
+
+class DE_transform(object):
+    def __init__(self, order=2):
+        self.order = order
+
+    def __call__(self, sample):
+        sample = sample.view((sample.shape[0], -1))
+        de = torch.cat([torch.stack([torch.prod(torch.combinations(a, i+1, with_replacement=True), dim=1) for a in sample]) for i in range(self.order)], dim=-1)
+        return de
+
 def gray_cifar_train_dataloader(dataset, data_dir, batch_size, num_workers):
     train_transform = transforms.Compose([
                 transforms.Grayscale(),
@@ -97,13 +111,20 @@ def gray_cifar_val_dataloader(dataset, data_dir, batch_size, num_workers):
                                             pin_memory=True)
 
 
-def train_dataloader(dataset, data_dir, batch_size, num_workers, augmentation=True):
+def train_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, augmentation=True):
     log.info('Training data loader called.')
     if dataset == 'MNIST':
-        train_dataset = torchvision.datasets.MNIST(root=data_dir,
+        if svd:
+            trans = transforms.Compose([transforms.ToTensor(), SVD_transform()])
+            train_dataset = torchvision.datasets.MNIST(root=data_dir,
                                                 train=True,
-                                                transform=transforms.ToTensor(),
+                                                transform=trans,
                                                 download=True)
+        else:
+            train_dataset = torchvision.datasets.MNIST(root=data_dir,
+                                                    train=True,
+                                                    transform=transforms.ToTensor(),
+                                                    download=True)
     elif dataset == 'ORL':
         train_dataset = ORLdataset(train=True,
                                     root_dir=data_dir,
@@ -134,13 +155,19 @@ def train_dataloader(dataset, data_dir, batch_size, num_workers, augmentation=Tr
                                             pin_memory=True)
 
 
-def val_dataloader(dataset, data_dir, batch_size, num_workers):
+def val_dataloader(dataset, data_dir, batch_size, num_workers, svd=False):
     log.info('Valuating data loader called.')
     if dataset == 'MNIST':
         # MNIST dataset
-        val_dataset = torchvision.datasets.MNIST(root=data_dir,
+        if svd:
+            trans = transforms.Compose([transforms.ToTensor(), SVD_transform()])
+            val_dataset = torchvision.datasets.MNIST(root=data_dir,
                                                 train=False,
-                                                transform=transforms.ToTensor())
+                                                transform=trans)
+        else:
+            val_dataset = torchvision.datasets.MNIST(root=data_dir,
+                                                    train=False,
+                                                    transform=transforms.ToTensor())
     elif dataset == 'ORL':
         val_dataset = ORLdataset(train=False,
                                     root_dir=data_dir,
@@ -161,12 +188,18 @@ def val_dataloader(dataset, data_dir, batch_size, num_workers):
                                             pin_memory=True)
 
 
-def test_dataloader(dataset, data_dir, batch_size, num_workers):
+def test_dataloader(dataset, data_dir, batch_size, num_workers, svd=False):
     if dataset == 'MNIST':
         # MNIST dataset
-        test_dataset = torchvision.datasets.MNIST(root=data_dir,
+        if svd:
+            trans = transforms.Compose([transforms.ToTensor(), SVD_transform()])
+            test_dataset = torchvision.datasets.MNIST(root=data_dir,
                                                 train=False,
-                                                transform=transforms.ToTensor())
+                                                transform=trans)
+        else:
+            test_dataset = torchvision.datasets.MNIST(root=data_dir,
+                                                    train=False,
+                                                    transform=transforms.ToTensor())
     elif dataset == 'ORL':
         test_dataset = ORLdataset(train=False,
                                     root_dir=data_dir,
@@ -187,25 +220,24 @@ def test_dataloader(dataset, data_dir, batch_size, num_workers):
 
 if __name__ == '__main__':
     #test
-    x = ORLdataset(train=True, transform=transforms.Compose([transforms.Resize(50), transforms.ToTensor()]), val_split=0.2)
-
-    # dataset_size = len(x)
-    # validation_split = 0.2
-    # indices = list(range(dataset_size))
-    # split = int(np.floor(validation_split * dataset_size))
-    # train_indices, val_indices = indices[split:], indices[:split]
-
-    # # Creating PT data samplers and loaders:
-    # train_sampler = torch.utils.data.SubsetRandomSampler(train_indices)
-    # valid_sampler = torch.utils.data.SubsetRandomSampler(val_indices)
-
+    x = torchvision.datasets.MNIST(root='/mydata/xcat/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), DE_transform()]))
     data = DataLoader(x, batch_size=2, shuffle=False)
     print(data.__len__())
     example = x.__getitem__(0)
+    # plt.figure()
+    # plt.imshow(example[0][0], cmap='gray')
+    # plt.savefig('before.jpg')
+
+    u,s,v = torch.svd(example[0][0])
+    print(s.shape)
+    print(s)
+    new = s*s*s
+    new = torch.diag(new)
+    decode = torch.mm(torch.mm(u,new), v.t())
     #plot picture
     plt.figure()
-    plt.imshow(example['image'].reshape((60,50)), cmap='gray')
-    plt.savefig('/disk/test.jpg')
+    plt.imshow(decode, cmap='gray')
+    plt.savefig('3-order-after.jpg')
 
     for i_batch, sample_batched in enumerate(data):
         print(i_batch, sample_batched['image'].size(), sample_batched['labels'].size())

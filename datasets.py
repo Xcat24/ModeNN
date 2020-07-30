@@ -1,11 +1,26 @@
 import torch
+from torch import dtype
 import torchvision
 import torchvision.transforms as transforms
 import layer
 from myutils.datasets import ORLdataset, NumpyDataset
 from sklearn import datasets
+from PIL import ImageDraw, Image
 import numpy as np
 import math
+
+#generate triangle, square, circle patterns, 10*10 pixels each
+bg = np.ones((100,100), dtype=np.uint8)*255
+bg = Image.fromarray(bg)
+
+draw = ImageDraw.Draw(bg)
+# draw.rectangle([3,3,47,47], 'black', 'black')
+# draw.ellipse([3,3,43,43], 'black', 'black')
+draw.polygon([3,43, 3,3, 43,20], 'black', 'black')
+
+bg.save('test.jpg')
+bg = np.array(bg)
+print(bg)
 
 #produce circle_square numpy data
 def gen_point():

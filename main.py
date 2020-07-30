@@ -53,6 +53,8 @@ def get_args():
                                help='path to dataset')
     parent_parser.add_argument('--augmentation', action='store_true',
                                help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
+    parent_parser.add_argument('--svd', action='store_true',
+                                help='whether to use svd transform to data')
     parent_parser.add_argument('--save-path', default=".", type=str,
                                help='path to save output')
     parent_parser.add_argument('--pretrained', default=None, type=str,
@@ -101,9 +103,9 @@ def main(hparams):
         train_data = gray_cifar_train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
         val_data = gray_cifar_val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
     else:
-        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
-        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
-        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
+        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, hparams.svd)
+        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, hparams.svd)
+        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, hparams.svd)
     model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
     # model = mymodels.BaseModel(hparams, nn.CrossEntropyLoss())
     print(model)
@@ -187,7 +189,7 @@ def main(hparams):
     else:
         trainer.fit(model, train_data, val_data)
     if hparams.test:
-        trainer.test(test_dataloader)
+        trainer.test(test_data)
 
 
 if __name__ == '__main__':

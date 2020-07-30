@@ -1,13 +1,10 @@
 import torch
-import torchvision
-import torchvision.transforms as transforms
 import numpy as np
 import math
 import seaborn as sns
 from skimage import feature
 from skimage.color import rgb2gray
 from matplotlib import pyplot as plt
-
 
 def compute_cnn_out(input_size, kernel_size, padding=(0,0), dilation=(1,1), stride=(1,1), pooling=(2,2)):
     h_out = ((input_size[0]+2*padding[0]-dilation[0]*(kernel_size[0]-1)-1)//stride[0] + 1)//pooling[0]
