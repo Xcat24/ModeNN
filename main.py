@@ -55,6 +55,10 @@ def get_args():
                                help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
     parent_parser.add_argument('--svd', action='store_true',
                                 help='whether to use svd transform to data')
+    parent_parser.add_argument('--de-trans', action='store_true',
+                                help='whether to use de transform to data')
+    parent_parser.add_argument('--de-trans-order', type=int, default=2,
+                                help='order of de transformer')
     parent_parser.add_argument('--save-path', default=".", type=str,
                                help='path to save output')
     parent_parser.add_argument('--pretrained', default=None, type=str,
@@ -103,9 +107,9 @@ def main(hparams):
         train_data = gray_cifar_train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
         val_data = gray_cifar_val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
     else:
-        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, hparams.svd)
-        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, hparams.svd)
-        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, hparams.svd)
+        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
+        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
+        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
     model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
     # model = mymodels.BaseModel(hparams, nn.CrossEntropyLoss())
     print(model)
