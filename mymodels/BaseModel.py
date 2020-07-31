@@ -82,7 +82,7 @@ class BaseModel(LightningModule):
         return {
             'progress_bar': tqdm_dict,
             'log': tqdm_dict,
-            'val_acc': val_loss_mean
+            'val_acc': val_acc_mean
             }
 
     def test_step(self, batch, batch_nb):
