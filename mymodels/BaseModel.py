@@ -33,7 +33,7 @@ class BaseModel(LightningModule):
         x, y = batch
         out = self.forward(x)
         loss = self.loss(out, y)
-        return pl.TrainResult(loss)
+        return {'loss': loss}
 
     def validation_step(self, batch, batch_nb):
         x, y = batch

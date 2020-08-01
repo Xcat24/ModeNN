@@ -175,8 +175,8 @@ def main(hparams):
         track_grad_norm=-1,  #Looking at grad norms
         precision=hparams.precision,
         auto_lr_find=False,
-        distributed_backend='ddp',
-        use_amp=hparams.use_amp,
+        # distributed_backend='ddp',
+        # use_amp=hparams.use_amp,
         # print_nan_grads=True,
         checkpoint_callback=checkpoint_callback,
         logger=loggers,

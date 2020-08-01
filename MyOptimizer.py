@@ -2,10 +2,14 @@ import torch
 from torch.autograd import Variable
 
 class pseudoInverse(object):
-    def __init__(self, w, de_dim, C=1e-3, forgettingfactor=1, L=0):
+    def __init__(self, params, de_dim, batch_size, num_class, C=1e-3, forgettingfactor=1, L=0):
         self.C = C
         self.L = L
-        self.w = w
+        self.forgettingfactor = forgettingfactor
+        self.batch_size = batch_size
+        self.num_class = num_class
+        self.w = params
+        self.w.data.fill_(0) 
         self.M = Variable(torch.inverse(self.C*torch.eye(de_dim)),requires_grad=False)
 
     def pseudoBig(self,inputs,oneHotTarget):
@@ -24,21 +28,21 @@ class pseudoInverse(object):
 
         w = torch.mm(self.M, inputs.t())
         w = torch.mm(w, oneHotTarget)
-        self.w = w.t()
+        self.w.data = w.t().data
 
     def pseudoSmall(self,inputs,oneHotTarget):
         xxt = torch.mm(inputs, inputs.t())
         I = Variable(torch.eye(self.batch_size),requires_grad=False)
         # if self.is_cuda:
         #     I = I.cuda()
-        self.M = Variable(torch.inverse(xxt + self.C * I.item()),requires_grad=False)
+        self.M = Variable(torch.inverse(xxt + self.C * I), requires_grad=False)
         w = torch.mm(inputs.t(), self.M)
         w = torch.mm(w, oneHotTarget)
 
-        self.w = w.t()
+        self.w.data = w.t().data
 
     def oneHotVectorize(self,targets):
-        oneHotTarget=torch.zeros(targets.size()[0],targets.max().item()+1)
+        oneHotTarget=torch.zeros(targets.size()[0],self.num_class)
 
         for i in range(targets.size()[0]):
             oneHotTarget[i][targets[i].item()]=1
@@ -74,8 +78,6 @@ class pseudoInverse(object):
             self.M=Variable(torch.inverse(xtx+self.C*I1),requires_grad=False)
 
         I = Variable(torch.eye(numSamples))
-        if self.is_cuda:
-            I = I.cuda()
 
         self.M = (1/self.forgettingfactor) * self.M - torch.mm((1/self.forgettingfactor) * self.M,
                                              torch.mm(inputs.t(), torch.mm(Variable(torch.inverse(I + torch.mm(inputs, torch.mm((1/self.forgettingfactor)* self.M, inputs.t()))),requires_grad=False),
