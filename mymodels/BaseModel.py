@@ -84,7 +84,7 @@ class BaseModel(LightningModule):
     @staticmethod
     def add_model_specific_args(parent_parser):  # pragma: no cover
         parser = argparse.ArgumentParser(parents=[parent_parser])
-        parser.add_argument('--epochs', default=100, type=int, metavar='N',
+        parser.add_argument('--num-epochs', default=100, type=int, metavar='N',
                             help='number of total epochs to run')
         parser.add_argument('--seed', type=int, default=None,
                             help='seed for initializing training. ')
@@ -95,12 +95,6 @@ class BaseModel(LightningModule):
         parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                             metavar='W', help='weight decay (default: 1e-4)',
                             dest='weight_decay')
-        parser.add_argument('--pretrained', dest='pretrained', action='store_true',
-                            help='use pre-trained model')
-        parent_parser.add_argument('--num-classes', default=None, type=int,
+        parent_parser.add_argument('--num-class', default=None, type=int,
                                 help='number of the total classes')
-        parent_parser.add_argument('--augmentation', action='store_true',
-                               help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
-        parent_parser.add_argument('--val-split', default=None, type=float,
-                                help='how much data to split as the val data')
         return parser
