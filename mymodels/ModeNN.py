@@ -74,8 +74,8 @@ class ModeNN(BaseModel):
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
-        tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
-        log_dict = ({'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()})
+        tqdm_dict = {'val_loss': avg_loss, 'val_acc': '{0:.5f}'.format(avg_acc)}
+        log_dict = ({'val_loss': avg_loss, 'val_acc': avg_acc})
                                       
         #logger
         # if self.logger:

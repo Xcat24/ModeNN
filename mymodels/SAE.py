@@ -187,7 +187,7 @@ class AE_MP(LightningModule):
 			self.decoder)
 
         self.classifier = nn.Sequential(
-            nn.Linear(self.hparams.features[2], self.hparams.hidden_dense)
+            nn.Linear(self.hparams.features[2], self.hparams.hidden_dense),
             nn.Linear(self.hparams.hidden_dense, self.hparams.num_class)
         )
 
