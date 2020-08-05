@@ -5,6 +5,7 @@ import logging as log
 import pandas as pd
 import numpy as np
 from PIL import Image
+import cv2
 from matplotlib import pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
@@ -77,6 +78,17 @@ class DE_transform(object):
         sample = sample.view((sample.shape[0], -1))
         de = torch.cat([torch.stack([torch.prod(torch.combinations(a, i+1, with_replacement=True), dim=1) for a in sample]) for i in range(self.order)], dim=-1)
         return de
+
+class DCT_transform(object):
+    def __init__(self, dim):
+        self.dim = dim
+
+    def __call__(self, sample):
+        assert len(sample.shape) == 3
+        tmp = sample.numpy()
+        tmp = [torch.tensor(cv2.dct(x))[:self.dim, :self.dim] for x in tmp]
+        return torch.stack(tmp, dim=0)
+
 
 def gray_cifar_train_dataloader(dataset, data_dir, batch_size, num_workers):
     train_transform = transforms.Compose([
@@ -225,13 +237,13 @@ def test_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=Tr
 
 if __name__ == '__main__':
     #test
-    x = torchvision.datasets.MNIST(root='/mydata/xcat/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), DE_transform()]))
+    x = torchvision.datasets.MNIST(root='/home/xucong/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), DCT_transform(28)]))
     data = DataLoader(x, batch_size=2, shuffle=False)
     print(data.__len__())
-    example = x.__getitem__(0)
-    # plt.figure()
-    # plt.imshow(example[0][0], cmap='gray')
-    # plt.savefig('before.jpg')
+    example = x.__getitem__(1)
+    plt.figure()
+    plt.imshow(example[0][0], cmap='gray')
+    plt.savefig('mnist-dct-%s.jpg'%(example[1]))
 
     u,s,v = torch.svd(example[0][0])
     print(s.shape)
