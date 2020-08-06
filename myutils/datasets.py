@@ -77,7 +77,28 @@ class DE_transform(object):
     def __call__(self, sample):
         sample = sample.view((sample.shape[0], -1))
         de = torch.cat([torch.stack([torch.prod(torch.combinations(a, i+1, with_replacement=True), dim=1) for a in sample]) for i in range(self.order)], dim=-1)
-        return de
+        return de.squeeze()
+
+class RandomSampleDE_transform(object):
+    def __init__(self, input_size_x, input_size_y, group_num, order):
+        self.order = order
+        self.group_num = group_num
+        self.x = torch.normal(mean=input_size_x/2, std=4, size=(group_num, 3)).long().clamp(0,input_size_x-1)
+        self.y = torch.normal(mean=input_size_y/2, std=4, size=(group_num, 3)).long().clamp(0,input_size_y-1)
+
+    def __call__(self, sample):
+        assert len(sample.shape) == 3
+        assert isinstance(sample, torch.Tensor)
+        origin = torch.flatten(sample, 1)
+        result = []
+        for i in range(self.group_num):
+            tmp = torch.index_select(sample, dim=1, index=self.x[i])
+            tmp = torch.index_select(tmp, dim=2, index=self.y[i])
+            result.append(tmp)
+        random_sample = torch.stack(result, dim=1).view(-1, 9)
+        de = torch.cat([torch.stack([torch.prod(torch.combinations(a, i+2, with_replacement=True), dim=1) for a in random_sample]) for i in range(self.order - 1)], dim=-1)
+        de = de.squeeze().view(sample.shape[0],-1)
+        return torch.cat([origin, de], dim=-1).squeeze()
 
 class DCT_transform(object):
     def __init__(self, dim):
@@ -123,7 +144,7 @@ def gray_cifar_val_dataloader(dataset, data_dir, batch_size, num_workers):
                                             pin_memory=True)
 
 
-def train_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=True, order=2, augmentation=True):
+def train_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=False, randomsample_de=False, group_num=64, order=2, augmentation=True):
     log.info('Training data loader called.')
     if dataset == 'MNIST':
         transformers = [transforms.ToTensor()]
@@ -131,6 +152,8 @@ def train_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=T
             transformers.append(SVD_transform())
         if de:
             transformers.append(DE_transform(order=order))
+        if randomsample_de:
+            transformers.append(RandomSampleDE_transform(28,28, group_num, order))
         
         trans = transforms.Compose(transformers)
         train_dataset = torchvision.datasets.MNIST(root=data_dir,
@@ -168,7 +191,7 @@ def train_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=T
                                             pin_memory=True)
 
 
-def val_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=True, order=2):
+def val_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=False, randomsample_de=False, group_num=64, order=2):
     log.info('Valuating data loader called.')
     if dataset == 'MNIST':
         # MNIST dataset
@@ -177,6 +200,8 @@ def val_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=Tru
             transformers.append(SVD_transform())
         if de:
             transformers.append(DE_transform(order=order))
+        if randomsample_de:
+            transformers.append(RandomSampleDE_transform(28,28, group_num, order))
         
         trans = transforms.Compose(transformers)
         val_dataset = torchvision.datasets.MNIST(root=data_dir,
@@ -203,7 +228,7 @@ def val_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=Tru
                                             pin_memory=True)
 
 
-def test_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=True, order=2):
+def test_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=False, randomsample_de=False, group_num=64, order=2):
     if dataset == 'MNIST':
         # MNIST dataset
         transformers = [transforms.ToTensor()]
@@ -211,6 +236,8 @@ def test_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=Tr
             transformers.append(SVD_transform())
         if de:
             transformers.append(DE_transform(order=order))
+        if randomsample_de:
+            transformers.append(RandomSampleDE_transform(28,28, group_num, order))
         
         trans = transforms.Compose(transformers)
         test_dataset = torchvision.datasets.MNIST(root=data_dir,
@@ -237,10 +264,19 @@ def test_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=Tr
 
 if __name__ == '__main__':
     #test
-    x = torchvision.datasets.MNIST(root='/home/xucong/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), DCT_transform(28)]))
+    # x = torchvision.datasets.MNIST(root='/home/xucong/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), DCT_transform(28)]))
+    x = torchvision.datasets.MNIST(root='/home/xucong/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), RandomSampleDE_transform(28,28,4,5)]))
+
     data = DataLoader(x, batch_size=2, shuffle=False)
     print(data.__len__())
     example = x.__getitem__(1)
+
+    for batch in data:
+        x, y = batch
+        print(x)
+        print(y)
+
+
     plt.figure()
     plt.imshow(example[0][0], cmap='gray')
     plt.savefig('mnist-dct-%s.jpg'%(example[1]))

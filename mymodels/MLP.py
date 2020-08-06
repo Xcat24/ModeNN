@@ -11,9 +11,7 @@ from myutils.utils import compute_mode_dim
 
 class MLP(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
-        super(MLP, self).__init__(hparams=hparams, loss=loss)
-        if self.hparams.de_trans:
-            self.hparams.dense_nodes = [compute_mode_dim([np.prod(self.hparams.input_size) for _ in range(self.hparams.de_trans_order)])]
+        super(MLP, self).__init__(hparams=hparams, loss=loss)          
         #TODO
         self.fc = self._make_dense()
         self.out_layer = nn.Linear(self.hparams.dense_nodes[-1], self.hparams.num_classes)

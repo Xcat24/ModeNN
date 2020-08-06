@@ -57,6 +57,10 @@ def get_args():
                                 help='whether to use svd transform to data')
     parent_parser.add_argument('--de-trans', action='store_true',
                                 help='whether to use de transform to data')
+    parent_parser.add_argument('--randomsample-de-trans', action='store_true',
+                                help='whether to use randomsample-de transform to data')
+    parent_parser.add_argument('--sample-group-num', type=int, default=64,
+                                help='group number of sample de transformer')
     parent_parser.add_argument('--de-trans-order', type=int, default=2,
                                 help='order of de transformer')
     parent_parser.add_argument('--save-path', default=".", type=str,
@@ -65,7 +69,7 @@ def get_args():
                                help='path to the saved modal')
     parent_parser.add_argument('--gpus', type=int, default=-1,
                                help='use which gpus')
-    parent_parser.add_argument('--num-workers', type=int, default=1,
+    parent_parser.add_argument('--num-workers', type=int, default=4,
                                help='how many cpu kernels to use')
     parent_parser.add_argument('--log-gpu', action='store_true',
                                help='whether to log gpu usage')
@@ -107,9 +111,12 @@ def main(hparams):
         train_data = gray_cifar_train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
         val_data = gray_cifar_val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
     else:
-        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
-        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
-        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
+        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd,
+                                     de=hparams.de_trans, randomsample_de=hparams.randomsample_de_trans, group_num=hparams.sample_group_num, order=hparams.de_trans_order)
+        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, 
+                                     de=hparams.de_trans, randomsample_de=hparams.randomsample_de_trans, group_num=hparams.sample_group_num, order=hparams.de_trans_order)
+        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd,
+                                     de=hparams.de_trans, randomsample_de=hparams.randomsample_de_trans, group_num=hparams.sample_group_num, order=hparams.de_trans_order)
     model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
     # model = mymodels.BaseModel(hparams, nn.CrossEntropyLoss())
     print(model)

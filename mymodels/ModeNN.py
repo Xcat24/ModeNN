@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 import argparse
 from .BaseModel import BaseModel
 from .Conv import conv3x3, conv5x5, conv_init, single_conv_basic, double_conv_basic
@@ -9,6 +10,88 @@ from layer import DescartesExtension, RandomDE, MaskDE, LocalDE, SLConv, Mode, M
 from sota_module import resnet, Wide_ResNet, partial_resnet
 
 
+
+class TransformModeNN(BaseModel):
+    def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
+        super(TransformModeNN, self).__init__(hparams=hparams, loss=loss)
+        if self.hparams.de_trans:
+            self.input_size = compute_mode_dim([np.prod(self.hparams.input_size) for _ in range(self.hparams.de_trans_order - 1)])+np.prod(self.hparams.input_size)
+        elif self.hparams.randomsample_de_trans:
+            self.input_size = compute_mode_dim([9 for _ in range(self.hparams.de_trans_order-1)])*self.hparams.sample_group_num + np.prod(self.hparams.input_size)
+
+        if self.hparams.dropout:
+            self.dropout_layer = nn.Dropout(self.hparams.dropout)
+        if self.hparams.norm:
+            self.norm_layer = nn.BatchNorm1d(self.input_size)
+
+        if self.hparams.hidden_nodes:
+            self.hidden = nn.Linear(self.input_size, self.hparams.hidden_nodes)
+            self.hidden_bn = nn.BatchNorm1d(self.hparams.hidden_nodes)
+            self.fc = nn.Linear(self.hparams.hidden_nodes, self.hparams.num_classes)
+        else:
+            self.fc = nn.Linear(self.input_size, self.hparams.num_classes)
+
+    def forward(self, x):
+        if self.hparams.norm:
+            x = self.norm_layer(x)
+            if self.hparams.de_relu:
+                x = F.relu(x)
+        if self.hparams.dropout:
+            x = self.dropout_layer(x)
+
+        if self.hparams.hidden_nodes:
+            x = self.hidden_bn(F.relu(self.hidden(x))) #实际上是hidde_out
+
+        out = self.fc(x)
+        return out
+
+    def configure_optimizers(self):
+        opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=self.hparams.nesterov)
+        return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
+    
+    
+ 
+    @staticmethod
+    def add_model_specific_args(parent_parser):  # pragma: no cover
+        parser = argparse.ArgumentParser(parents=[parent_parser])
+        parser.add_argument('--num-epochs', default=90, type=int, metavar='N',
+                            help='number of total epochs to run')
+        parser.add_argument('--arch', default='ModeNN', type=str,
+                            help='networ architecture')
+        parser.add_argument('--seed', type=int, default=None,
+                            help='seed for initializing training. ')
+        parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                            help='initial learning rate', dest='lr')
+        parser.add_argument('--lr-milestones', nargs='+', type=int,
+                                help='learning rate milestones')
+        parser.add_argument('--lr-gamma', default=0.1, type=float,
+                            help='number learning rate multiplied when reach the lr-milestones')
+        parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                            help='momentum')
+        parser.add_argument('--nesterov', dest='nesterov', action='store_true',
+                            help='use nesterov in SGD')
+        parser.add_argument('--dropout', default=0, type=float,
+                                help='the rate of the dropout')
+        parser.add_argument('--wd', '--weight-decay', default=5e-4, type=float,
+                            metavar='W', help='weight decay (default: 1e-4)',
+                            dest='weight_decay')
+        parser.add_argument('--hidden-nodes', default=0, type=int,
+                                help='use how many hidden nodes between de-layer and out-layer, 0 is not to use hidden layer(default)')
+        parser.add_argument('--log-weight', default=0, type=int,
+                                help='log weight figure every x epoch')
+        parser.add_argument('--num-classes', default=None, type=int,
+                                help='number of the total classes')
+        parser.add_argument('--input-size', nargs='+', type=int,
+                                help='dims of input data, return list')
+        parser.add_argument('--order', default=2, type=int,
+                                help='order of Mode')
+        parser.add_argument('--norm', action='store_true',
+                               help='whether to use normalization layer')
+        parser.add_argument('--de-relu', action='store_true',
+                               help='whether to use a relu after normalization layer on de data')
+        parser.add_argument('--val-split', default=None, type=float,
+                                help='how much data to split as the val data')
+        return parser
 
 class ModeNN(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
