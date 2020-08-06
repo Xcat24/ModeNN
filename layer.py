@@ -11,14 +11,17 @@ class DescartesExtension(nn.Module):
         self.order = order
 
     def forward(self, x):
-        #empty gpu cache
-        torch.cuda.empty_cache()
         if x.dim() == 1:
             return torch.prod(torch.combinations(x, self.order, with_replacement=True), dim=1)
         elif x.dim() == 2:
             return torch.stack([torch.prod(torch.combinations(a, self.order, with_replacement=True), dim=1) for a in x])
+        elif x.dim() == 3:
+            batch, kernel, _ = x.shape
+            x = x.view(-1, x.shape[-1])
+            tmp = torch.stack([torch.prod(torch.combinations(a, self.order, with_replacement=True), dim=1) for a in x])
+            return tmp.view((batch, -1))
         else:
-            raise ValueError("the dimension of input tensor is expected 1 or 2")
+            raise ValueError("the dimension of input tensor is expected 1, 2 or 3")
 
 class RandomDE(nn.Module):
     def __init__(self, order=[2,], input_dim=784, output_dim=[64,]):
@@ -170,11 +173,12 @@ class MaskLayer(nn.Module):
 if __name__ == "__main__":
     import torchvision
 
-    x = torch.arange(32).reshape((2,1,4,4)).float()
+    x = torch.arange(32).reshape((2,4,4)).float()
     y = torch.rand((2,1,4,4))
     print(x)
     print(y)
-    m = LocalDE(order=2, kernel_size=(3,3), out_channel=16)
+    # m = LocalDE(order=2, kernel_size=(3,3), out_channel=16)
+    m = DescartesExtension(2)
     output = m(x)
     output[0,0,0].backward()
     m.weights.grad()
