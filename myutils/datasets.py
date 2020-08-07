@@ -144,10 +144,12 @@ def gray_cifar_val_dataloader(dataset, data_dir, batch_size, num_workers):
                                             pin_memory=True)
 
 
-def train_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=False, randomsample_de=False, group_num=64, order=2, augmentation=True):
+def train_dataloader(dataset, data_dir, batch_size, num_workers, dct=False, dct_dim=10, svd=False, de=False, randomsample_de=False, group_num=64, order=2, augmentation=True):
     log.info('Training data loader called.')
     if dataset == 'MNIST':
         transformers = [transforms.ToTensor()]
+        if dct:
+            transformers.append(DCT_transform(dct_dim))
         if svd:
             transformers.append(SVD_transform())
         if de:
@@ -191,11 +193,13 @@ def train_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=F
                                             pin_memory=True)
 
 
-def val_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=False, randomsample_de=False, group_num=64, order=2):
+def val_dataloader(dataset, data_dir, batch_size, num_workers, dct=False, dct_dim=10, svd=False, de=False, randomsample_de=False, group_num=64, order=2):
     log.info('Valuating data loader called.')
     if dataset == 'MNIST':
         # MNIST dataset
         transformers = [transforms.ToTensor()]
+        if dct:
+            transformers.append(DCT_transform(dct_dim))
         if svd:
             transformers.append(SVD_transform())
         if de:
@@ -228,10 +232,12 @@ def val_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=Fal
                                             pin_memory=True)
 
 
-def test_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=False, randomsample_de=False, group_num=64, order=2):
+def test_dataloader(dataset, data_dir, batch_size, num_workers, dct=False, dct_dim=10, svd=False, de=False, randomsample_de=False, group_num=64, order=2):
     if dataset == 'MNIST':
         # MNIST dataset
         transformers = [transforms.ToTensor()]
+        if dct:
+            transformers.append(DCT_transform(dct_dim))
         if svd:
             transformers.append(SVD_transform())
         if de:
@@ -264,8 +270,8 @@ def test_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=Fa
 
 if __name__ == '__main__':
     #test
-    # x = torchvision.datasets.MNIST(root='/home/xucong/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), DCT_transform(28)]))
-    x = torchvision.datasets.MNIST(root='/home/xucong/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), RandomSampleDE_transform(28,28,4,5)]))
+    x = torchvision.datasets.MNIST(root='/home/xucong/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), DCT_transform(10)]))
+    # x = torchvision.datasets.MNIST(root='/home/xucong/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), RandomSampleDE_transform(28,28,4,5)]))
 
     data = DataLoader(x, batch_size=2, shuffle=False)
     print(data.__len__())

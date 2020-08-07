@@ -53,6 +53,10 @@ def get_args():
                                help='path to dataset')
     parent_parser.add_argument('--augmentation', action='store_true',
                                help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
+    parent_parser.add_argument('--dct', action='store_true',
+                                help='whether to use dct transform to data')
+    parent_parser.add_argument('--dct-dim', type=int, default=10,
+                                help='dim selected after dct per axis')
     parent_parser.add_argument('--svd', action='store_true',
                                 help='whether to use svd transform to data')
     parent_parser.add_argument('--de-trans', action='store_true',
@@ -111,11 +115,11 @@ def main(hparams):
         train_data = gray_cifar_train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
         val_data = gray_cifar_val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
     else:
-        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd,
+        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, dct=hparams.dct, dct_dim=hparams.dct_dim,
                                      de=hparams.de_trans, randomsample_de=hparams.randomsample_de_trans, group_num=hparams.sample_group_num, order=hparams.de_trans_order)
-        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, 
+        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, dct=hparams.dct, dct_dim=hparams.dct_dim,
                                      de=hparams.de_trans, randomsample_de=hparams.randomsample_de_trans, group_num=hparams.sample_group_num, order=hparams.de_trans_order)
-        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd,
+        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, dct=hparams.dct, dct_dim=hparams.dct_dim,
                                      de=hparams.de_trans, randomsample_de=hparams.randomsample_de_trans, group_num=hparams.sample_group_num, order=hparams.de_trans_order)
     model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
     # model = mymodels.BaseModel(hparams, nn.CrossEntropyLoss())
