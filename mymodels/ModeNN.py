@@ -256,6 +256,114 @@ class ModeNN(BaseModel):
                                 help='how much data to split as the val data')
         return parser
 
+class PoolModeNN(BaseModel):
+    def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
+        super(PoolModeNN, self).__init__(hparams=hparams, loss=loss)
+        self.pooling_layer = nn.MaxPool2d(2)
+        self.de_2order = DescartesExtension(2)
+        self.de_3order = DescartesExtension(3)
+        self.de_4order = DescartesExtension(4)
+        self.de_5order = DescartesExtension(5)
+        DE_dim = 42697
+        
+        if self.hparams.dropout:
+            self.dropout_layer = nn.Dropout(self.hparams.dropout)
+        if self.hparams.norm:
+            self.norm_layer = nn.BatchNorm1d(DE_dim)
+
+        if self.hparams.hidden_nodes:
+            self.hidden = nn.Linear(DE_dim, self.hparams.hidden_nodes)
+            self.hidden_bn = nn.BatchNorm1d(self.hparams.hidden_nodes)
+            self.fc = nn.Linear(self.hparams.hidden_nodes, self.hparams.num_classes)
+        else:
+            self.fc = nn.Linear(DE_dim, self.hparams.num_classes)
+
+    def forward(self, x):
+        out = []
+        out.append(torch.flatten(x, 1))
+        x = self.pooling_layer(x)
+        out.append(self.de_2order(torch.flatten(x,1)))
+        x = self.pooling_layer(x)
+        out.append(self.de_3order(torch.flatten(x,1)))
+        x = self.pooling_layer(x)
+        out.append(self.de_4order(torch.flatten(x,1)))
+        out.append(self.de_5order(torch.flatten(x,1)))
+        de_out = torch.cat(out, dim=-1)
+
+        if self.hparams.norm:
+            de_out = self.norm_layer(de_out)
+            if self.hparams.de_relu:
+                de_out = F.relu(de_out)
+        if self.hparams.dropout:
+            de_out = self.dropout_layer(de_out)
+
+        # de_out = self.tanh(de_out)
+        if self.hparams.hidden_nodes:
+            de_out = self.hidden_bn(F.relu(self.hidden(de_out))) #实际上是hidde_out
+
+        out = self.fc(de_out)
+        # out = self.softmax(out)
+        return out
+
+    def configure_optimizers(self):
+        opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=self.hparams.nesterov)
+        return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
+
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
+        tqdm_dict = {'val_loss': avg_loss, 'val_acc': '{0:.5f}'.format(avg_acc)}
+        log_dict = ({'val_loss': avg_loss, 'val_acc': avg_acc})
+
+        return {
+            'avg_val_loss': avg_loss,
+            'val_acc': avg_acc,
+            'progress_bar': tqdm_dict,
+            'log': log_dict
+            }
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):  # pragma: no cover
+        parser = argparse.ArgumentParser(parents=[parent_parser])
+        parser.add_argument('--num-epochs', default=90, type=int, metavar='N',
+                            help='number of total epochs to run')
+        parser.add_argument('--seed', type=int, default=None,
+                            help='seed for initializing training. ')
+        parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                            help='initial learning rate', dest='lr')
+        parser.add_argument('--lr-milestones', nargs='+', type=int,
+                                help='learning rate milestones')
+        parser.add_argument('--lr-gamma', default=0.1, type=float,
+                            help='number learning rate multiplied when reach the lr-milestones')
+        parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                            help='momentum')
+        parser.add_argument('--nesterov', dest='nesterov', action='store_true',
+                            help='use nesterov in SGD')
+        parser.add_argument('--dropout', default=0, type=float,
+                                help='the rate of the dropout')
+        parser.add_argument('--wd', '--weight-decay', default=5e-4, type=float,
+                            metavar='W', help='weight decay (default: 1e-4)',
+                            dest='weight_decay')
+        parser.add_argument('--hidden-nodes', default=0, type=int,
+                                help='use how many hidden nodes between de-layer and out-layer, 0 is not to use hidden layer(default)')
+        parser.add_argument('--log-weight', default=0, type=int,
+                                help='log weight figure every x epoch')
+        parser.add_argument('--num-classes', default=None, type=int,
+                                help='number of the total classes')
+        parser.add_argument('--input-size', nargs='+', type=int,
+                                help='dims of input data, return list')
+        parser.add_argument('--order', default=2, type=int,
+                                help='order of Mode')
+        parser.add_argument('--norm', action='store_true',
+                               help='whether to use normalization layer')
+        parser.add_argument('--de-relu', action='store_true',
+                               help='whether to use a relu after normalization layer on de data')
+        parser.add_argument('--pooling',default=0, type=int,
+                               help='whether to decrease dimentions first')
+        parser.add_argument('--val-split', default=None, type=float,
+                                help='how much data to split as the val data')
+        return parser
+
 class RandomSampleModeNN(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
         super(RandomSampleModeNN, self).__init__(hparams=hparams, loss=loss)
