@@ -117,6 +117,7 @@ def gray_cifar_train_dataloader(dataset, data_dir, batch_size, num_workers):
                 transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
+                DCT_transform(10),
                 transforms.Normalize(120.7 / 255.0, 63.9 / 255.0)
             ])
     train_dataset = torchvision.datasets.CIFAR10(root=data_dir,
@@ -133,6 +134,7 @@ def gray_cifar_val_dataloader(dataset, data_dir, batch_size, num_workers):
     val_transform = transforms.Compose([
                 transforms.Grayscale(),
                 transforms.ToTensor(),
+                DCT_transform(10),
                 transforms.Normalize(120.7 / 255.0, 63.9 / 255.0)])
     val_dataset = torchvision.datasets.CIFAR10(root=data_dir,
                                                 train=False,
