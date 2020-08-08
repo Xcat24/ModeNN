@@ -41,6 +41,8 @@ def get_args():
                                 help='whether to use tensorboard')
     parent_parser.add_argument('--wandb-dir', type=str,
                                help='path to save wandb log')
+    parent_parser.add_argument('--wandb-project', type=str,
+                               help='project name of wandb')
     parent_parser.add_argument('--tb-dir', type=str,
                                help='path to save tensorboard')
     parent_parser.add_argument('--is-checkpoint', action='store_true',
@@ -163,7 +165,7 @@ def main(hparams):
     loggers = []
             
     if hparams.is_wandb_logger:    
-        wandb_logger = WandbLogger(name=hparams.run_name, project='modenn', save_dir=hparams.wandb_dir)#, offline=True)
+        wandb_logger = WandbLogger(name=hparams.run_name, project=hparams.wandb_project, save_dir=hparams.wandb_dir)#, offline=True)
         loggers.append(wandb_logger)  
 
     if hparams.is_tb_logger:
