@@ -120,7 +120,7 @@ class ModeNN(BaseModel):
             self.fc = nn.Linear(self.hparams.hidden_nodes, self.hparams.num_classes)
         else:
             self.fc = nn.Linear(DE_dim, self.hparams.num_classes)
-        self.softmax = nn.Softmax(dim=1)
+        # self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
         if self.hparams.pooling:

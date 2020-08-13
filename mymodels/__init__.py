@@ -6,3 +6,4 @@ from .activation import *
 from .MLP import *
 from .SAE import *
 from .ELM import *
+from .WeightsSelect import *

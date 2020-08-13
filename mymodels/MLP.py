@@ -123,7 +123,6 @@ class NoHidden(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
         super(NoHidden, self).__init__(hparams=hparams, loss=loss)
         self.input_size = np.prod(self.hparams.input_size)          
-
         self.fc = nn.Linear(self.input_size, self.hparams.num_classes)
 
     def forward(self, x):
