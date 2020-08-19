@@ -22,6 +22,8 @@ class MLP(BaseModel):
             layers.append(mymodels.activation.__dict__[self.hparams.activation]())
         else:
             layers.append(nn.__dict__[self.hparams.activation]())
+        if self.hparams.norm:
+            layers.append(nn.BatchNorm1d(self.hparams.dense_nodes[0]))
         if len(self.hparams.dense_nodes) > 1:
             for _ in range(1, len(self.hparams.dense_nodes)):
                 layers.append(nn.Linear(self.hparams.dense_nodes[_-1],self.hparams.dense_nodes[_]))
@@ -29,6 +31,8 @@ class MLP(BaseModel):
                     layers.append(mymodels.activation.__dict__[self.hparams.activation]())
                 else:
                     layers.append(nn.__dict__[self.hparams.activation]())
+                if self.hparams.norm:
+                    layers.append(nn.BatchNorm1d(self.hparams.dense_nodes[_]))
         
         return nn.Sequential(*layers)
 
@@ -95,6 +99,8 @@ class MLP(BaseModel):
                             help='number learning rate multiplied when reach the lr-milestones')
         parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                             help='momentum')
+        parser.add_argument('--norm', action='store_true',
+                               help='whether to use normalization layer')
         parser.add_argument('--dropout', default=0, type=float,
                                 help='the rate of the dropout')
         parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
