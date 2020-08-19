@@ -51,7 +51,7 @@ class BaseModel(LightningModule):
         val_acc_mean = torch.stack([x['val_acc'] for x in outputs]).mean()
 
         logs = {'val_loss': val_loss_mean, 'val_acc': val_acc_mean}
-        results = {'log': logs}
+        results = {'progress_bar': logs}
         return results
 
     def test_step(self, batch, batch_nb):
@@ -73,8 +73,8 @@ class BaseModel(LightningModule):
     def test_epoch_end(self, outputs):
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
-        logs = {'test_loss': loss, 'test_acc': avg_acc}
-        results = {'log': logs}
+        logs = {'test_loss': avg_loss, 'test_acc': avg_acc}
+        results = {'progress_bar': logs}
         return results
 
     def get_progress_bar_dict(self):
