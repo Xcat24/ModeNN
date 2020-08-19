@@ -180,7 +180,6 @@ class ModeNN(BaseModel):
 
     def test_step(self, batch, batch_nb):
         x, y = batch
-        de_out = self.de_forward(x)
         out = self.forward(x)
         loss = self.loss(out, y)
 
@@ -192,24 +191,24 @@ class ModeNN(BaseModel):
         output = {
             'test_loss': loss,
             'test_acc': torch.tensor(test_acc), # everything must be a tensor
-            'de_out': de_out,
-            'data': x,
-            'label': y
+            # 'data': x,
+            # 'label': y
         }
 
         return output
 
     def test_end(self, outputs):
-        whole_test_data = torch.cat([x['data'] for x in outputs], dim=0)
-        whole_deout_data = torch.cat([x['de_out'] for x in outputs], dim=0)
-        whole_test_label = torch.cat([x['label'] for x in outputs], dim=0)
-        #logger
-        if self.logger:
-            self.logger.experiment.add_embedding(whole_test_data, whole_test_label, tag='raw data')
-            self.logger.experiment.add_embedding(whole_deout_data, whole_test_label, tag='deout data')
+        # whole_test_data = torch.cat([x['data'] for x in outputs], dim=0)
+        # whole_deout_data = torch.cat([x['de_out'] for x in outputs], dim=0)
+        # whole_test_label = torch.cat([x['label'] for x in outputs], dim=0)
+        # #logger
+        # if self.logger:
+        #     self.logger.experiment.add_embedding(whole_test_data, whole_test_label, tag='raw data')
+        #     self.logger.experiment.add_embedding(whole_deout_data, whole_test_label, tag='deout data')
 
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
+        print('acc = {0:.4f}'.format(avg_acc))
         return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
 
     @staticmethod
