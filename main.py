@@ -55,6 +55,12 @@ def get_args():
                                help='whether to use data augmentation preprocess, now only availbale for CIFAR10 dataset')
     parent_parser.add_argument('--svd', action='store_true',
                                 help='whether to use svd transform to data')
+    parent_parser.add_argument('--random-sample-trans', action='store_true',
+                                help='whether to use random select from all feature dims transformer to data')
+    parent_parser.add_argument('--random-trans-in-dim', type=int, default=784,
+                                help='input dim of random sample transformer')
+    parent_parser.add_argument('--random-trans-out-dim', type=int, default=316,
+                                help='output dim of random sample transformer')
     parent_parser.add_argument('--de-trans', action='store_true',
                                 help='whether to use de transform to data')
     parent_parser.add_argument('--de-trans-order', type=int, default=2,
@@ -107,9 +113,12 @@ def main(hparams):
         train_data = gray_cifar_train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
         val_data = gray_cifar_val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers)
     else:
-        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
-        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
-        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
+        train_data = train_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, random_sample=hparams.random_sample_trans,
+                                      random_in_dim=hparams.random_trans_in_dim, random_out_dim=hparams.random_trans_out_dim, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
+        val_data = val_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, random_sample=hparams.random_sample_trans, 
+                                  random_in_dim=hparams.random_trans_in_dim, random_out_dim=hparams.random_trans_out_dim, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
+        test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, random_sample=hparams.random_sample_trans, 
+                                    random_in_dim=hparams.random_trans_in_dim, random_out_dim=hparams.random_trans_out_dim, svd=hparams.svd, de=hparams.de_trans, order=hparams.de_trans_order)
     model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
     # model = mymodels.BaseModel(hparams, nn.CrossEntropyLoss())
     print(model)

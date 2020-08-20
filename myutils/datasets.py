@@ -1,3 +1,4 @@
+# from layer import RandomDE, output
 import torch
 import torchvision
 import os
@@ -78,6 +79,15 @@ class DE_transform(object):
         de = torch.cat([torch.stack([torch.prod(torch.combinations(a, i+1, with_replacement=True), dim=1) for a in sample]) for i in range(self.order)], dim=-1)
         return de
 
+class RandomPick_transform(object):
+    def __init__(self, input_dim=784, output_dim=64):
+        self.mask = torch.randint(input_dim, (output_dim,))
+
+    def __call__(self, sample):
+        origin = torch.flatten(sample, 1)
+        selected = torch.index_select(origin,dim=1,index=self.mask)
+        return (origin, selected)
+
 def gray_cifar_train_dataloader(dataset, data_dir, batch_size, num_workers):
     train_transform = transforms.Compose([
                 transforms.Grayscale(),
@@ -111,12 +121,14 @@ def gray_cifar_val_dataloader(dataset, data_dir, batch_size, num_workers):
                                             pin_memory=True)
 
 
-def train_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=True, order=2, augmentation=True):
+def train_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=False,random_in_dim=784, random_out_dim=316, svd=False, de=True, order=2, augmentation=True):
     log.info('Training data loader called.')
     if dataset == 'MNIST':
         transformers = [transforms.ToTensor()]
         if svd:
             transformers.append(SVD_transform())
+        if random_sample:
+            transformers.append(RandomPick_transform(random_in_dim, random_out_dim))
         if de:
             transformers.append(DE_transform(order=order))
         
@@ -156,13 +168,15 @@ def train_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=T
                                             pin_memory=True)
 
 
-def val_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=True, order=2):
+def val_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=False,random_in_dim=784, random_out_dim=316, svd=False, de=True, order=2):
     log.info('Valuating data loader called.')
     if dataset == 'MNIST':
         # MNIST dataset
         transformers = [transforms.ToTensor()]
         if svd:
             transformers.append(SVD_transform())
+        if random_sample:
+            transformers.append(RandomPick_transform(random_in_dim, random_out_dim))
         if de:
             transformers.append(DE_transform(order=order))
         
@@ -191,12 +205,14 @@ def val_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=Tru
                                             pin_memory=True)
 
 
-def test_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=True, order=2):
+def test_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=False,random_in_dim=784, random_out_dim=316, svd=False, de=True, order=2):
     if dataset == 'MNIST':
         # MNIST dataset
         transformers = [transforms.ToTensor()]
         if svd:
             transformers.append(SVD_transform())
+        if random_sample:
+            transformers.append(RandomPick_transform(random_in_dim, random_out_dim))
         if de:
             transformers.append(DE_transform(order=order))
         
@@ -225,13 +241,15 @@ def test_dataloader(dataset, data_dir, batch_size, num_workers, svd=False, de=Tr
 
 if __name__ == '__main__':
     #test
-    x = torchvision.datasets.MNIST(root='/mydata/xcat/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), DE_transform()]))
+    x = torchvision.datasets.MNIST(root='/mydata/xcat/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), RandomPick_transform(784, 64)]))
     data = DataLoader(x, batch_size=2, shuffle=False)
     print(data.__len__())
-    example = x.__getitem__(0)
+    # example = x.__getitem__(0)
     # plt.figure()
     # plt.imshow(example[0][0], cmap='gray')
     # plt.savefig('before.jpg')
+    for i, (x,y) in enumerate(data):
+        print(x)
 
     u,s,v = torch.svd(example[0][0])
     print(s.shape)
