@@ -103,7 +103,7 @@ def data_statics(tag, data, bins_num=10, verbose=False):
         if not isinstance(data, torch.Tensor):
             x = torch.tensor(data).to(torch.device('cpu'))
         else:
-            x = torch.tensor(data).to(torch.device('cpu'))
+            x = data.to(torch.device('cpu'))
         max = x.max().item()
         min = x.min().item()
         mean = x.mean().item()
