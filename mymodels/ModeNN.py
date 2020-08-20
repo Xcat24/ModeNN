@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.utils.prune as prune
 import torch.nn.functional as F
 import numpy as np
 import argparse
@@ -120,7 +121,9 @@ class ModeNN(BaseModel):
             self.fc = nn.Linear(self.hparams.hidden_nodes, self.hparams.num_classes)
         else:
             self.fc = nn.Linear(DE_dim, self.hparams.num_classes)
-        # self.softmax = nn.Softmax(dim=1)
+        
+        if self.hparams.init_prune:
+            prune.random_unstructured(self.fc, name="weight", amount=self.hparams.prune_amount)
 
     def forward(self, x):
         if self.hparams.pooling:
@@ -216,8 +219,10 @@ class ModeNN(BaseModel):
         parser = argparse.ArgumentParser(parents=[parent_parser])
         parser.add_argument('--num-epochs', default=90, type=int, metavar='N',
                             help='number of total epochs to run')
-        parser.add_argument('--arch', default='ModeNN', type=str,
-                            help='networ architecture')
+        parser.add_argument('--init-prune', action='store_true',
+                               help='whether to prune fc weight when initialize fc layer')
+        parser.add_argument('--prune-amount', default=0.2, type=float,
+                            help='pruning rate of the init-prune')
         parser.add_argument('--seed', type=int, default=None,
                             help='seed for initializing training. ')
         parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
