@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import argparse
 from .BaseModel import BaseModel
 from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask, find_polyitem
-from layer import DescartesExtension, MaskDE, LocalDE, SLConv, Mode, MaskLayer
+from layer import BreakupConv, DescartesExtension, MaskDE, LocalDE, SLConv, Mode, MaskLayer
 
 def conv3x3(in_channel, out_channels, stride=1):
     return nn.Conv2d(in_channel, out_channels, kernel_size=3, stride=stride, padding=1, bias=True)
@@ -151,6 +151,150 @@ class MyConv2D(BaseModel):
                 return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
             else:
                 return [opt]
+     
+    def test_step(self, batch, batch_nb):
+        x, y = batch
+        out = self.forward(x)
+        conv_out = self.conv_forward(x)
+        dense_out = self.dense_forward(x)
+        loss = self.loss(out, y)
+
+        # calculate acc
+        labels_hat = torch.argmax(out, dim=1)
+        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
+
+        # return whatever you need for the collation function validation_end
+        output = {
+            'test_loss': loss,
+            'test_acc': torch.tensor(test_acc), # everything must be a tensor
+            'conv_out': conv_out,
+            'dense_out': dense_out,
+            'data': x,
+            'label': y
+        }
+
+        return output
+
+    def test_end(self, outputs):
+        whole_test_data = torch.cat([x['data'].reshape((-1,3072)) for x in outputs], dim=0)
+        whole_test_label = torch.cat([x['label'] for x in outputs], dim=0)
+        whole_conv_out = torch.cat([x['conv_out'] for x in outputs], dim=0)
+        whole_dense_out = torch.cat([x['dense_out'] for x in outputs], dim=0)
+        #logger
+        if self.logger:
+            self.logger.experiment.add_embedding(whole_test_data, whole_test_label, tag='raw data')
+            self.logger.experiment.add_embedding(whole_conv_out, whole_test_label, tag='CNN-conv-out data')
+            self.logger.experiment.add_embedding(whole_dense_out, whole_test_label, tag='CNN-dense-out data')
+
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
+        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):  # pragma: no cover
+        parser = argparse.ArgumentParser(parents=[parent_parser])
+        parser.add_argument('--num-epochs', default=90, type=int, metavar='N',
+                            help='number of total epochs to run')
+        parser.add_argument('--arch', default='MyConv2D', type=str, 
+                            help='networ architecture')
+        parser.add_argument('--seed', type=int, default=None,
+                            help='seed for initializing training. ')
+        parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                            metavar='LR', help='initial learning rate', dest='lr')
+        parser.add_argument('--lr-milestones', nargs='+', type=int,
+                                help='learning rate milestones')
+        parser.add_argument('--lr-gamma', default=0.1, type=float,
+                            help='number learning rate multiplied when reach the lr-milestones')
+        parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                            help='momentum')
+        parser.add_argument('--dropout', default=0, type=float,
+                                help='the rate of the dropout')
+        parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
+                            metavar='W', help='weight decay (default: 1e-4)',
+                            dest='weight_decay')
+        parser.add_argument('--log-weight', default=0, type=int,
+                                help='log weight figure every x epoch')
+        parser.add_argument('--num-classes', default=None, type=int,
+                                help='number of the total classes')
+        parser.add_argument('--input-size', nargs='+', type=int,
+                                help='size of input data, return as list')
+        parser.add_argument('--opt', default='SGD', type=str,
+                                help='optimizer to use')
+        parser.add_argument('--val-split', default=None, type=float,
+                                help='how much data to split as the val data, now it refers to ORL dataset')
+        #params in conv
+        parser.add_argument('--kernel-size', nargs='+', type=int,
+                                help='size of kernels, return as list, only support 3 or 5')
+        parser.add_argument('--out-channels', nargs='+', type=int,
+                                help='size of output channel, return as list, the length is 2 at least')
+        parser.add_argument('--in-channel', default=3, type=int,
+                                help='number of input channel')
+        parser.add_argument('--stride', default=1, type=int,
+                                help='stride')
+        parser.add_argument('--dense-nodes', nargs='+', type=int,
+                                help='numbers of dense layers nodels, return as list')
+        parser.add_argument('--basic-mode', default='single', type=str,
+                                help='conv basic to use')
+        parser.add_argument('--pooling', dest='pooling', action='store_true',
+                                help='whether to use pooling after conv layer')
+        parser.add_argument('--pool-shape', default=2, type=int,
+                                help='average pooling shape')
+        parser.add_argument('--conv-outshape', default=1, type=int,
+                                help='dimentions of conv layer output data')
+        return parser
+
+
+class BreakupConv2D(BaseModel):
+    def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
+        super(BreakupConv2D, self).__init__(hparams=hparams, loss=loss)
+
+        self.conv1 = BreakupConv(hparams.input_size, hparams.kernel_size, hparams.out_channels[0], hparams.in_channel)
+        self.bn1 = nn.BatchNorm2d(hparams.out_channels[0])
+
+        self.conv2 = BreakupConv((13, 13), hparams.kernel_size, hparams.out_channels[1], hparams.out_channels[0])
+        self.bn2 = nn.BatchNorm2d(hparams.out_channels[1])
+
+        self.fc = self._make_dense()
+        self.out_layer = nn.Linear(self.hparams.dense_nodes[-1], self.hparams.num_classes)
+
+    def _make_dense(self):
+        layers = [nn.Linear(self.hparams.conv_outshape, self.hparams.dense_nodes[0])]
+        layers.append(nn.ReLU())
+        if len(self.hparams.dense_nodes) > 1:
+            for _ in range(1, len(self.hparams.dense_nodes)):
+                layers.append(nn.Linear(self.hparams.dense_nodes[_-1],self.hparams.dense_nodes[_]))
+                layers.append(nn.ReLU())
+        
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        if self.hparams.pooling:
+            out = F.max_pool2d(out, self.hparams.pool_shape)
+        out = F.relu(self.bn2(self.conv2(out)))
+        if self.hparams.pooling:
+            out = F.max_pool2d(out, self.hparams.pool_shape)
+        # print(out.shape)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
+        out = self.out_layer(out)
+
+        return out
+    
+    def configure_optimizers(self):
+        if self.hparams.opt == 'SGD':
+            opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=True)
+            if self.hparams.lr_milestones:
+                return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
+            else:
+                return [opt]
+        elif self.hparams.opt == 'Adam':
+            opt = torch.optim.Adam(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay)
+            if self.hparams.lr_milestones:
+                return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
+            else:
+                return [opt]
+    
     
     def test_step(self, batch, batch_nb):
         x, y = batch

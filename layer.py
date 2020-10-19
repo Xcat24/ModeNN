@@ -169,9 +169,42 @@ class MaskLayer(nn.Module):
     def forward(self, x):
         return torch.index_select(x, 1, self.mask.to(x.device))
 
+class BreakupConv(nn.Module):
+    def __init__(self, input_size=(28,28), kernel_size=(3,3), out_channel=16, in_channel=3):
+        super(BreakupConv, self).__init__()
+        self.weights = nn.Parameter(torch.randn(out_channel, in_channel, kernel_size[0]*kernel_size[1]), requires_grad=True)
+        self.unfold = nn.Unfold(kernel_size=kernel_size)
+        self.fold = nn.Fold(output_size=(input_size[0]-kernel_size[0]+1, input_size[1]-kernel_size[1]+1), kernel_size=(1,1))
+
+    def forward(self, x):
+        inp_unf = self.unfold(x)
+        out_unf = inp_unf.transpose(1, 2).matmul(self.weights.view(self.weights.size(0), -1).t()).transpose(1, 2)
+        out = self.fold(out_unf)
+        return out
 
 if __name__ == "__main__":
     import torchvision
+    import torch
+    from torch.nn import functional as F
+
+    w = torch.rand((16,3,3,3))
+    b = torch.zeros((16,))
+    x = torch.rand(2, 3, 28, 28)
+
+    # conv_out = F.conv2d(x,weight=w,bias=b,stride=(1,1))
+    # print(conv_out)
+
+    # inp_unf = F.unfold(x,3) #shape: [2,27,676]
+    # out_unf = inp_unf.transpose(1, 2).matmul(w.view(w.size(0), -1).t()).transpose(1, 2) #shape: [2,16,676]
+    # out = F.fold(out_unf,(26,26), (1,1)) #shape: [2,16,26,26]
+
+    # if torch.equal(out, conv_out):
+    #     print('it is equal')
+
+    b_conv = BreakupConv()
+    out = b_conv(x)
+    print(out)
+
 
     x = torch.arange(32).reshape((2,4,4)).float()
     y = torch.rand((2,1,4,4))
