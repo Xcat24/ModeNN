@@ -43,7 +43,7 @@ class BaseModel(LightningModule):
         # calculate acc
         labels_hat = torch.argmax(out, dim=1)
         val_acc = self.metric['accuracy'](labels_hat, y)
-        val_acc /= (self.hparams.gpus + 1)
+        # val_acc /= (self.hparams.gpus + 1)
         return {'val_loss': loss, 'val_acc': val_acc}
 
     def validation_epoch_end(self, outputs):

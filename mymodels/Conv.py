@@ -3,8 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import argparse
 from .BaseModel import BaseModel
-from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask, find_polyitem
-from layer import BreakupConv, DescartesExtension, MaskDE, LocalDE, SLConv, Mode, MaskLayer
+from layer import BreakupConv
 
 def conv3x3(in_channel, out_channels, stride=1):
     return nn.Conv2d(in_channel, out_channels, kernel_size=3, stride=stride, padding=1, bias=True)

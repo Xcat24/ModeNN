@@ -51,27 +51,55 @@ class RandomDE(nn.Module):
         de_out = [self.compute_order(x, self.order[i], self.input_dim, self.output_dim[i], self.idx[i]) for i in range(len(self.output_dim))]
         return torch.cat(de_out, dim=-1)
 
-class LocalDE(nn.Module):
+class DE_Conv(nn.Module):
     ##TODO gradient overflow bug to be fixed
-    def __init__(self, order=2, kernel_size=(3,3), out_channel=16):
-        super(LocalDE, self).__init__()
+    def __init__(self, order=2, input_size=(28,28), kernel_size=(3,3), in_channel=1, out_channel=16):
+        super(DE_Conv, self).__init__()
+        self.in_channel = in_channel
+        self.kernel_dim = kernel_size[0]*kernel_size[1]
         de_dim = compute_mode_dim(torch.prod(torch.tensor(kernel_size)).item(), order)
         # self.weights = nn.Parameter(torch.randn(out_channel, de_dim))
-        self.weights = nn.Parameter(torch.randn(out_channel, kernel_size[0]*kernel_size[1]))
+        self.weights = nn.Parameter(torch.randn(out_channel, in_channel*de_dim), requires_grad=True)
         self.unfold = nn.Unfold(kernel_size=kernel_size)
+        self.fold = nn.Fold((input_size[0]-kernel_size[0]+1, input_size[1]-kernel_size[1]+1), (1,1))
 
         self.de = DescartesExtension(order=order)
 
     def forward(self, x):
         if x.dim() != 4:
             raise ValueError("the dimension of input tensor is expected 4")
-        x = self.unfold(x).transpose(1,2)
-        # out = x.reshape(-1, x.size(-1))
-        # out = self.de(out)
-        # out = out.view(x.size(0), x.size(1), -1)
-        # out = out.matmul(self.weights.t()).transpose(1,2)
+        x = self.unfold(x).transpose(1,2).view((x.shape[0], -1, self.in_channel, self.kernel_dim))
+        out = x.reshape(-1, x.size(-1))
+        out = self.de(out)
+        out = out.view(x.size(0), x.size(1), -1)
+        out = out.matmul(self.weights.t()).transpose(1,2)
+        out = self.fold(out)
 
-        out = x.matmul(self.weights.t()).transpose(1,2)
+        # out = x.matmul(self.weights.t()).transpose(1,2)
+        return out
+
+class Fast2Order_DE_Conv(nn.Module):
+    def __init__(self, input_size=(28,28), kernel_size=(3,3), in_channel=1, out_channel=16):
+        super(Fast2Order_DE_Conv, self).__init__()
+        self.in_channel = in_channel
+        self.kernel_dim = kernel_size[0]*kernel_size[1]
+        de_dim = self.kernel_dim*self.kernel_dim
+        # self.weights = nn.Parameter(torch.randn(out_channel, de_dim))
+        self.weights = nn.Parameter(torch.randn(out_channel, in_channel*de_dim), requires_grad=True)
+        self.unfold = nn.Unfold(kernel_size=kernel_size)
+        self.fold = nn.Fold((input_size[0]-kernel_size[0]+1, input_size[1]-kernel_size[1]+1), (1,1))
+
+    def forward(self, x):
+        if x.dim() != 4:
+            raise ValueError("the dimension of input tensor is expected 4")
+        x = self.unfold(x).transpose(1,2).view((x.shape[0], -1, self.in_channel, self.kernel_dim))
+        out = x.reshape(-1, x.size(-1))
+        out = torch.matmul(out.unsqueeze(-1),out.unsqueeze(-2))
+        out = out.view(x.size(0), x.size(1), -1)
+        out = out.matmul(self.weights.t()).transpose(1,2)
+        out = self.fold(out)
+
+        # out = x.matmul(self.weights.t()).transpose(1,2)
         return out
 
 class MaskDE(nn.Module):
@@ -189,8 +217,9 @@ if __name__ == "__main__":
 
     w = torch.rand((16,3,3,3))
     b = torch.zeros((16,))
-    x = torch.rand(2, 3, 28, 28)
+    x = torch.rand(2, 16, 13, 13)
 
+    #BreakupConv  Test
     # conv_out = F.conv2d(x,weight=w,bias=b,stride=(1,1))
     # print(conv_out)
 
@@ -201,10 +230,18 @@ if __name__ == "__main__":
     # if torch.equal(out, conv_out):
     #     print('it is equal')
 
-    b_conv = BreakupConv()
-    out = b_conv(x)
-    print(out)
+    # b_conv = BreakupConv()
+    # out = b_conv(x)
+    # print(out)
 
+    #DE_Conv Test
+    # conv_de = DE_Conv(order=2, input_size=(13,13), kernel_size=(3,3), in_channel=16, out_channel=64)
+    # out = conv_de(x)
+    # out = F.max_pool2d(out,2)
+
+    #Fast2Order_DE_Conv Test
+    conv_de = Fast2Order_DE_Conv(order=2, input_size=(13,13), kernel_size=(3,3), in_channel=16, out_channel=64)
+    out = conv_de(x)
 
     x = torch.arange(32).reshape((2,4,4)).float()
     y = torch.rand((2,1,4,4))
