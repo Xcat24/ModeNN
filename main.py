@@ -207,8 +207,7 @@ def main(hparams):
         progress_bar_refresh_rate=hparams.bar,
         # row_log_interval=80,
         # log_save_interval=80,
-        early_stop_callback=early_stop_callback,
-        # callbacks=callbacks,
+        callbacks=[early_stop_callback],
         profiler=True
         )
 

@@ -8,7 +8,7 @@ import torchvision.transforms as transforms
 from torch import nn
 import pytorch_lightning as pl
 from pytorch_lightning.core.lightning import LightningModule
-from pytorch_lightning.metrics import Accuracy, AveragePrecision, ConfusionMatrix, Recall, Precision, ROC
+from pytorch_lightning.metrics import Accuracy, Recall, Precision
 from layer import DescartesExtension
 from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask, find_polyitem, data_statics
 from myutils.weight_analysis import load_model_weight, find_term
@@ -34,11 +34,8 @@ class ModeNNAutoMachine(LightningModule):
         self.loss = loss
         self.metric = {
             'accuracy': Accuracy(),
-            'confusionmatrix': ConfusionMatrix(),
             'recall': Recall(),
             'precision': Precision(),
-            'roc': ROC(),
-            'averageprecision': AveragePrecision()
         }
 
         path = '/home/xucong/Log/MNIST/ModeNN/2order/best_98.35.ckpt'

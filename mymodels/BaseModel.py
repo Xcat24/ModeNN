@@ -8,7 +8,7 @@ import torchvision.transforms as transforms
 from torch import nn
 import pytorch_lightning as pl
 from pytorch_lightning.core.lightning import LightningModule
-from pytorch_lightning.metrics import Accuracy, AveragePrecision, ConfusionMatrix, Recall, Precision, ROC
+from pytorch_lightning.metrics.classification import Accuracy, Precision, Recall
 from torch.utils.data import Dataset, DataLoader
 from myutils.datasets import ORLdataset, NumpyDataset
 
@@ -19,11 +19,8 @@ class BaseModel(LightningModule):
         self.loss = loss
         self.metric = {
             'accuracy': Accuracy(),
-            'confusionmatrix': ConfusionMatrix(),
             'recall': Recall(),
             'precision': Precision(),
-            'roc': ROC(),
-            'averageprecision': AveragePrecision()
         }
 
     def forward(self, *args, **kwargs):
@@ -33,6 +30,11 @@ class BaseModel(LightningModule):
         x, y = batch
         out = self.forward(x)
         loss = self.loss(out, y)
+
+        if self.logger is not None:
+            for i in range(len(self.logger.experiment)):
+                self.logger[i].experiment.log({'train_loss': loss})
+
         return {'loss': loss}
 
     def validation_step(self, batch, batch_nb):
@@ -50,8 +52,10 @@ class BaseModel(LightningModule):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         val_acc_mean = torch.stack([x['val_acc'] for x in outputs]).mean()
 
-        logs = {'val_loss': val_loss_mean, 'val_acc': val_acc_mean}
-        results = {'progress_bar': logs}
+        if self.logger is not None:
+            for i in range(len(self.logger.experiment)):
+                self.logger[i].experiment.log({'val_loss': val_loss_mean, 'val_acc': val_acc_mean})
+        results = {'progress_bar': {'val_loss': val_loss_mean, 'val_acc': val_acc_mean}}
         return results
 
     def test_step(self, batch, batch_nb):

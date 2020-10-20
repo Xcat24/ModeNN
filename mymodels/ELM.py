@@ -8,7 +8,7 @@ import torchvision.transforms as transforms
 from torch import nn
 import pytorch_lightning as pl
 from pytorch_lightning.core.lightning import LightningModule
-from pytorch_lightning.metrics import Accuracy, AveragePrecision, ConfusionMatrix, Recall, Precision, ROC
+from pytorch_lightning.metrics import Accuracy, Recall, Precision
 from layer import DescartesExtension, Mode
 from myutils.utils import compute_mode_dim
 from MyOptimizer import pseudoInverse
@@ -32,11 +32,8 @@ class ModeELM(LightningModule):
         self.batch_size = self.hparams.batch_size
         self.metric = {
             'accuracy': Accuracy(),
-            'confusionmatrix': ConfusionMatrix(),
             'recall': Recall(),
             'precision': Precision(),
-            'roc': ROC(),
-            'averageprecision': AveragePrecision()
         }
 
     def forward(self, x):
