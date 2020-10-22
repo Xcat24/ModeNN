@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -78,23 +79,40 @@ class DE_Conv(nn.Module):
         # out = x.matmul(self.weights.t()).transpose(1,2)
         return out
 
-class Fast2Order_DE_Conv(nn.Module):
-    def __init__(self, input_size=(28,28), kernel_size=(3,3), in_channel=1, out_channel=16):
-        super(Fast2Order_DE_Conv, self).__init__()
+class Fast_DE_Conv(nn.Module):
+    def __init__(self, order=2, input_size=(28,28), kernel_size=(3,3), in_channel=1, out_channel=16):
+        super(Fast_DE_Conv, self).__init__()
+        self.order = order
         self.in_channel = in_channel
         self.kernel_dim = kernel_size[0]*kernel_size[1]
-        de_dim = self.kernel_dim*self.kernel_dim
+        de_dim = self.compute_de_dim(self.kernel_dim)
         # self.weights = nn.Parameter(torch.randn(out_channel, de_dim))
         self.weights = nn.Parameter(torch.randn(out_channel, in_channel*de_dim), requires_grad=True)
         self.unfold = nn.Unfold(kernel_size=kernel_size)
         self.fold = nn.Fold((input_size[0]-kernel_size[0]+1, input_size[1]-kernel_size[1]+1), (1,1))
+
+    def compute_de_dim(self, dim):
+        temp = 0
+        for i in range(self.order):
+            temp += dim**(i + 1)
+        return temp
+    
+    def multi_order_de(self, order, x):
+        out = []
+        out.append(x)
+        temp = x
+        for i in range(order-1):
+            temp = torch.matmul(temp.unsqueeze(-1), x.unsqueeze(-2)).triu().view((len(x), -1))
+            out.append(temp)
+        return torch.cat(out, dim=1)
 
     def forward(self, x):
         if x.dim() != 4:
             raise ValueError("the dimension of input tensor is expected 4")
         x = self.unfold(x).transpose(1,2).view((x.shape[0], -1, self.in_channel, self.kernel_dim))
         out = x.reshape(-1, x.size(-1))
-        out = torch.matmul(out.unsqueeze(-1),out.unsqueeze(-2))
+        # out = torch.matmul(out.unsqueeze(-1),out.unsqueeze(-2))
+        out = self.multi_order_de(self.order, out)
         out = out.view(x.size(0), x.size(1), -1)
         out = out.matmul(self.weights.t()).transpose(1,2)
         out = self.fold(out)
@@ -240,7 +258,7 @@ if __name__ == "__main__":
     # out = F.max_pool2d(out,2)
 
     #Fast2Order_DE_Conv Test
-    conv_de = Fast2Order_DE_Conv(order=2, input_size=(13,13), kernel_size=(3,3), in_channel=16, out_channel=64)
+    conv_de = Fast_DE_Conv(order=3, input_size=(13,13), kernel_size=(3,3), in_channel=16, out_channel=64)
     out = conv_de(x)
 
     x = torch.arange(32).reshape((2,4,4)).float()

@@ -31,9 +31,9 @@ class BaseModel(LightningModule):
         out = self.forward(x)
         loss = self.loss(out, y)
 
-        if self.logger is not None:
-            for i in range(len(self.logger.experiment)):
-                self.logger[i].experiment.log({'train_loss': loss})
+        # if self.logger is not None:
+        #     for i in range(len(self.logger.experiment)):
+        #         self.logger[i].experiment.log({'train_loss': loss})
 
         return {'loss': loss}
 
@@ -45,18 +45,19 @@ class BaseModel(LightningModule):
         # calculate acc
         labels_hat = torch.argmax(out, dim=1)
         val_acc = self.metric['accuracy'](labels_hat, y)
-        # val_acc /= (self.hparams.gpus + 1)
+
         return {'val_loss': loss, 'val_acc': val_acc}
 
     def validation_epoch_end(self, outputs):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         val_acc_mean = torch.stack([x['val_acc'] for x in outputs]).mean()
 
-        if self.logger is not None:
-            for i in range(len(self.logger.experiment)):
-                self.logger[i].experiment.log({'val_loss': val_loss_mean, 'val_acc': val_acc_mean})
-        results = {'progress_bar': {'val_loss': val_loss_mean, 'val_acc': val_acc_mean}}
-        return results
+        # if self.logger is not None:
+        #     for i in range(len(self.logger.experiment)):
+        #         self.logger[i].experiment.log({'val_loss': val_loss_mean, 'val_acc': val_acc_mean})
+        self.log('val_loss', val_loss_mean, prog_bar=True, logger=True)
+        self.log('val_acc', val_acc_mean, prog_bar=True, logger=True)
+
 
     def test_step(self, batch, batch_nb):
         x, y = batch

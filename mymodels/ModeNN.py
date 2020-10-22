@@ -7,7 +7,7 @@ import argparse
 from .BaseModel import BaseModel
 from .Conv import conv3x3, conv5x5, conv_init, single_conv_basic, double_conv_basic
 from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask, find_polyitem, data_statics
-from layer import DescartesExtension, RandomDE, MaskDE, DE_Conv, SLConv, Mode, MaskLayer, Fast2Order_DE_Conv
+from layer import DescartesExtension, RandomDE, MaskDE, DE_Conv, SLConv, Mode, MaskLayer, Fast_DE_Conv
 from sota_module import resnet, Wide_ResNet, partial_resnet
 
 
@@ -1078,10 +1078,10 @@ class FastConvModeNN(BaseModel):
             self.input_size = self.hparams.input_size[0]
 
         out_dim = 1600#self.hparams.conv_outshape
-        self.de_conv1 = Fast2Order_DE_Conv(input_size=(28,28), kernel_size=(3,3), in_channel=1, out_channel=16)
+        self.de_conv1 = Fast_DE_Conv(order=self.hparams.order, input_size=(28,28), kernel_size=(3,3), in_channel=1, out_channel=16)
         self.bn1 = nn.BatchNorm2d(16)
 
-        self.de_conv2 = Fast2Order_DE_Conv(input_size=(13,13), kernel_size=(3,3), in_channel=16, out_channel=64)
+        self.de_conv2 = Fast_DE_Conv(order=self.hparams.order, input_size=(13,13), kernel_size=(3,3), in_channel=16, out_channel=64)
         self.bn2 = nn.BatchNorm2d(64)
         # for i in range(len(self.hparams.order)):
         #     out_dim += ((self.hparams.input_size[0] - self.hparams.kernel_size + 1)**2)*self.hparams.out_channel[i]
@@ -1187,6 +1187,8 @@ class FastConvModeNN(BaseModel):
                                 help='dims of input data, return list')
         parser.add_argument('--out-channel', nargs='+', type=int,
                                 help='out channels for different orders')                        
+        parser.add_argument('--order', default=2, type=int,
+                                help='order of Mode')        
         parser.add_argument('--kernel-size', default=3, type=int,
                                 help='kernel size')
         parser.add_argument('--norm', action='store_true',
