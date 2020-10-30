@@ -7,7 +7,7 @@ import argparse
 from .BaseModel import BaseModel
 from .Conv import conv3x3, conv5x5, conv_init, single_conv_basic, double_conv_basic
 from myutils.utils import compute_cnn_out, compute_5MODE_dim, compute_mode_dim, Pretrain_Mask, find_polyitem, data_statics
-from layer import DescartesExtension, RandomDE, MaskDE, DE_Conv, SLConv, Mode, MaskLayer, Fast_DE_Conv
+from layer import DescartesExtension, RandomDE, MaskDE, DE_Conv, SLConv, Mode, MaskLayer, Fast_DE_Conv, Fast_Local_DE
 from sota_module import resnet, Wide_ResNet, partial_resnet
 
 
@@ -1072,12 +1072,7 @@ class ConvModeNN(BaseModel):
 class FastConvModeNN(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
         super(FastConvModeNN, self).__init__(hparams=hparams, loss=loss)
-        if len(self.hparams.input_size) > 1:
-            self.input_size = torch.tensor(self.hparams.input_size).prod().item()
-        else:
-            self.input_size = self.hparams.input_size[0]
-
-        out_dim = 1600#self.hparams.conv_outshape
+        out_dim = self.hparams.conv_outshape
         self.de_conv1 = Fast_DE_Conv(order=self.hparams.order, input_size=(28,28), kernel_size=(3,3), in_channel=1, out_channel=16)
         self.bn1 = nn.BatchNorm2d(16)
 
@@ -1189,6 +1184,8 @@ class FastConvModeNN(BaseModel):
                                 help='out channels for different orders')                        
         parser.add_argument('--order', default=2, type=int,
                                 help='order of Mode')        
+        parser.add_argument('--conv-outshape', default=1600, type=int,
+                                help='output dim of conv modenn')
         parser.add_argument('--kernel-size', default=3, type=int,
                                 help='kernel size')
         parser.add_argument('--norm', action='store_true',
@@ -1200,6 +1197,220 @@ class FastConvModeNN(BaseModel):
         parser.add_argument('--val-split', default=None, type=float,
                                 help='how much data to split as the val data')
         return parser
+
+class SingleLayer_FastConvModeNN(BaseModel):
+    def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
+        super(SingleLayer_FastConvModeNN, self).__init__(hparams=hparams, loss=loss)
+        out_dim = self.hparams.conv_outshape
+        self.de_conv1 = Fast_DE_Conv(order=self.hparams.order, input_size=self.hparams.input_size, 
+                                    kernel_size=(self.hparams.kernel_size,self.hparams.kernel_size),
+                                    in_channel=self.hparams.in_channel, out_channel=self.hparams.out_channel)
+        self.bn1 = nn.BatchNorm2d(self.hparams.out_channel)
+
+        if self.hparams.dropout:
+            self.dropout_layer = nn.Dropout(self.hparams.dropout)
+
+        self.fc = nn.Linear(out_dim, self.hparams.num_classes)
+        self.out_bn = nn.BatchNorm1d(out_dim)
+
+    def forward(self, x):       
+        out = self.de_conv1(x)
+        # out = self.bn1(out)
+        out = F.relu(self.bn1(out))
+
+        if self.hparams.pooling:
+            # out = F.max_pool2d(out, 2)
+            out = F.avg_pool2d(out, 2)
+
+        out = out.view(out.size(0), -1)
+        if self.hparams.dropout:
+            out = self.dropout_layer(out)
+        out = self.out_bn(out)
+        out = self.fc(out)
+        
+        return out
+
+    def configure_optimizers(self):
+        opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=self.hparams.nesterov)
+        return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
+
+    def test_step(self, batch, batch_nb):
+        x, y = batch
+        out = self.forward(x)
+        loss = self.loss(out, y)
+
+        # calculate acc
+        labels_hat = torch.argmax(out, dim=1)
+        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
+
+        # return whatever you need for the collation function validation_end
+        output = {
+            'test_loss': loss,
+            'test_acc': torch.tensor(test_acc), # everything must be a tensor
+            'data': x,
+            'label': y
+        }
+
+        return output
+
+    def test_end(self, outputs):
+        whole_test_data = torch.cat([x['data'] for x in outputs], dim=0)
+        whole_deout_data = torch.cat([x['de_out'] for x in outputs], dim=0)
+        whole_test_label = torch.cat([x['label'] for x in outputs], dim=0)
+        #logger
+        if self.logger:
+            self.logger.experiment.add_embedding(whole_test_data, whole_test_label, tag='raw data')
+            self.logger.experiment.add_embedding(whole_deout_data, whole_test_label, tag='deout data')
+
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
+        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):  # pragma: no cover
+        parser = argparse.ArgumentParser(parents=[parent_parser])
+        parser.add_argument('--num-epochs', default=200, type=int, metavar='N',
+                            help='number of total epochs to run')
+        parser.add_argument('--arch', default='ConvModeNN', type=str,
+                            help='networ architecture')
+        parser.add_argument('--seed', type=int, default=None,
+                            help='seed for initializing training. ')
+        parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                            help='initial learning rate', dest='lr')
+        parser.add_argument('--lr-milestones', nargs='+', type=int,
+                                help='learning rate milestones')
+        parser.add_argument('--lr-gamma', default=0.1, type=float,
+                            help='number learning rate multiplied when reach the lr-milestones')
+        parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                            help='momentum')
+        parser.add_argument('--nesterov', dest='nesterov', action='store_true',
+                            help='use nesterov in SGD')
+        parser.add_argument('--dropout', default=0, type=float,
+                                help='the rate of the dropout')
+        parser.add_argument('--wd', '--weight-decay', default=5e-4, type=float,
+                            metavar='W', help='weight decay (default: 1e-4)',
+                            dest='weight_decay')
+        parser.add_argument('--log-weight', default=0, type=int,
+                                help='log weight figure every x epoch')
+        parser.add_argument('--num-classes', default=None, type=int,
+                                help='number of the total classes')
+        parser.add_argument('--input-size', nargs='+', type=int,
+                                help='dims of input data, return list')
+        parser.add_argument('--out-channel', default=16, type=int,
+                                help='out channels for different orders')                        
+        parser.add_argument('--in-channel', default=1, type=int,
+                                help='channel of input data')
+        parser.add_argument('--conv-outshape', default=1, type=int,
+                                help='output dim of conv modenn')
+        parser.add_argument('--order', default=2, type=int,
+                                help='order of Mode')        
+        parser.add_argument('--kernel-size', default=3, type=int,
+                                help='kernel size')
+        parser.add_argument('--norm', action='store_true',
+                               help='whether to use normalization layer')
+        parser.add_argument('--pooling',default=2, type=int,
+                               help='whether to decrease dimentions first')
+        parser.add_argument('--val-split', default=None, type=float,
+                                help='how much data to split as the val data')
+        return parser
+
+class Local_DE_ModeNN(BaseModel):
+    def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
+        super(Local_DE_ModeNN, self).__init__(hparams=hparams, loss=loss)
+        out_dim = self.hparams.de_outshape
+        self.local_de = Fast_Local_DE(order=self.hparams.order,  
+                                    kernel_size=(self.hparams.kernel_size,self.hparams.kernel_size),
+                                    in_channel=self.hparams.in_channel)
+        self.out_bn = nn.BatchNorm1d(out_dim)
+        self.fc = nn.Linear(out_dim, self.hparams.num_classes)
+        
+    def forward(self, x):       
+        out = self.local_de(x)
+        out = self.out_bn(out)
+        out = self.fc(out)
+        
+        return out
+
+    def configure_optimizers(self):
+        opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=self.hparams.nesterov)
+        return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
+
+    def test_step(self, batch, batch_nb):
+        x, y = batch
+        out = self.forward(x)
+        loss = self.loss(out, y)
+
+        # calculate acc
+        labels_hat = torch.argmax(out, dim=1)
+        test_acc = torch.sum(y == labels_hat).item() / (len(y) * 1.0)
+
+        # return whatever you need for the collation function validation_end
+        output = {
+            'test_loss': loss,
+            'test_acc': torch.tensor(test_acc), # everything must be a tensor
+            'data': x,
+            'label': y
+        }
+
+        return output
+
+    def test_end(self, outputs):
+        whole_test_data = torch.cat([x['data'] for x in outputs], dim=0)
+        whole_deout_data = torch.cat([x['de_out'] for x in outputs], dim=0)
+        whole_test_label = torch.cat([x['label'] for x in outputs], dim=0)
+        #logger
+        if self.logger:
+            self.logger.experiment.add_embedding(whole_test_data, whole_test_label, tag='raw data')
+            self.logger.experiment.add_embedding(whole_deout_data, whole_test_label, tag='deout data')
+
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['test_acc'] for x in outputs]).mean()
+        return {'avg_test_loss': avg_loss, 'test_acc': avg_acc}
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):  # pragma: no cover
+        parser = argparse.ArgumentParser(parents=[parent_parser])
+        parser.add_argument('--num-epochs', default=200, type=int, metavar='N',
+                            help='number of total epochs to run')
+        parser.add_argument('--arch', default='ConvModeNN', type=str,
+                            help='networ architecture')
+        parser.add_argument('--seed', type=int, default=None,
+                            help='seed for initializing training. ')
+        parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                            help='initial learning rate', dest='lr')
+        parser.add_argument('--lr-milestones', nargs='+', type=int,
+                                help='learning rate milestones')
+        parser.add_argument('--lr-gamma', default=0.1, type=float,
+                            help='number learning rate multiplied when reach the lr-milestones')
+        parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                            help='momentum')
+        parser.add_argument('--nesterov', dest='nesterov', action='store_true',
+                            help='use nesterov in SGD')
+        parser.add_argument('--dropout', default=0, type=float,
+                                help='the rate of the dropout')
+        parser.add_argument('--wd', '--weight-decay', default=5e-4, type=float,
+                            metavar='W', help='weight decay (default: 1e-4)',
+                            dest='weight_decay')
+        parser.add_argument('--log-weight', default=0, type=int,
+                                help='log weight figure every x epoch')
+        parser.add_argument('--num-classes', default=None, type=int,
+                                help='number of the total classes')
+        parser.add_argument('--input-size', nargs='+', type=int,
+                                help='dims of input data, return list')                       
+        parser.add_argument('--in-channel', default=1, type=int,
+                                help='channel of input data')
+        parser.add_argument('--de-outshape', default=1, type=int,
+                                help='output dim of conv modenn')
+        parser.add_argument('--order', default=2, type=int,
+                                help='order of Mode')        
+        parser.add_argument('--kernel-size', default=3, type=int,
+                                help='kernel size')
+        parser.add_argument('--pooling',default=2, type=int,
+                               help='whether to decrease dimentions first')
+        parser.add_argument('--val-split', default=None, type=float,
+                                help='how much data to split as the val data')
+        return parser
+
 
 class Conv_ModeNN(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
