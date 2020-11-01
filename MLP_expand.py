@@ -220,7 +220,7 @@ class new_mlp(torch.nn.Module):
         self.fc_out = torch.nn.Linear(500, 10)
     def expansion_sigmoid(self, x):
         temp = 0.5 + (1/4)*x - (1/48)*torch.pow(x,3) + (1/480)*torch.pow(x,5) - (17/80640)*torch.pow(x,7)
-        temp = torch.clamp(temp, min=-1, max=1)
+        temp = torch.clamp(temp, min=0, max=1)
         return temp 
 
     def forward(self, x):
