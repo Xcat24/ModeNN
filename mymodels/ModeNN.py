@@ -94,6 +94,53 @@ class TransformModeNN(BaseModel):
                                 help='how much data to split as the val data')
         return parser
 
+class XOR_ModeNN(BaseModel):
+    def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
+        super(XOR_ModeNN, self).__init__(hparams=hparams, loss=loss)
+        print('{} order Descartes Extension'.format(self.hparams.order))
+        DE_dim = compute_mode_dim([self.hparams.input_size for _ in range(self.hparams.order-1)]) + self.hparams.input_size
+        self.de_layer = Mode(order_dim=[self.hparams.input_size for _ in range(self.hparams.order-1)])
+        self.fc = nn.Linear(DE_dim, self.hparams.num_classes)
+
+    def forward(self, x):
+        origin = x
+        out = self.de_layer(origin)
+        de_out = torch.cat([origin, out], dim=-1)
+        out = self.fc(de_out)
+        # out = F.tanh(out)
+        return out
+
+    def configure_optimizers(self):
+        opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr)
+        return opt
+
+    def validation_step(self, batch, batch_nb):
+        x, y = batch
+        out = self.forward(x)
+        loss = self.loss(out, y)
+        # calculate acc
+        res = out.squeeze()*y.squeeze()
+        res = torch.ge(res, 0).sum().item()
+        val_acc = torch.tensor(res / len(x))
+        return {'val_loss': loss, 'val_acc': val_acc}
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):  # pragma: no cover
+        parser = argparse.ArgumentParser(parents=[parent_parser])
+        parser.add_argument('--num-epochs', default=90, type=int, metavar='N',
+                            help='number of total epochs to run')
+        parser.add_argument('--seed', type=int, default=None,
+                            help='seed for initializing training. ')
+        parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                            help='initial learning rate', dest='lr')
+        parser.add_argument('--num-classes', default=None, type=int,
+                                help='number of the total classes')
+        parser.add_argument('--input-size', default=2, type=int,
+                                help='dims of input data, return int')
+        parser.add_argument('--order', default=2, type=int,
+                                help='order of Mode')
+        return parser
+
 class ModeNN(BaseModel):
     def __init__(self, hparams, loss=nn.CrossEntropyLoss()):
         super(ModeNN, self).__init__(hparams=hparams, loss=loss)
@@ -144,7 +191,8 @@ class ModeNN(BaseModel):
             de_out = self.hidden_bn(F.relu(self.hidden(de_out))) #实际上是hidde_out
 
         out = self.fc(de_out)
-        # out = self.softmax(out)
+        # out = F.tanh(out)
+        # out = F.softmax(out)
         return out
 
     def de_forward(self, x):
