@@ -79,10 +79,10 @@ def get_args():
                                help='path to save output')
     parent_parser.add_argument('--pretrained', default=None, type=str,
                                help='path to the saved modal')
-    # parent_parser.add_argument('--gpus', type=int, default=-1,
-    #                            help='use which gpus')
-    parent_parser.add_argument('--gpus', type=str, default='0',
+    parent_parser.add_argument('--gpus', type=int, default=-1,
                                help='use which gpus')
+    # parent_parser.add_argument('--gpus', type=str, default='0',
+    #                            help='use which gpus')
     parent_parser.add_argument('--num-workers', type=int, default=4,
                                help='how many cpu kernels to use')
     parent_parser.add_argument('--log-gpu', action='store_true',
@@ -162,7 +162,7 @@ def main(hparams):
             mode='auto'
         )
     else:
-        early_stop_callback = False
+        early_stop_callback = []
 
     if hparams.is_checkpoint:
         checkpoint_callback = ModelCheckpoint(
@@ -209,7 +209,7 @@ def main(hparams):
         progress_bar_refresh_rate=hparams.bar,
         # row_log_interval=80,
         # log_save_interval=80,
-        callbacks=[early_stop_callback],
+        callbacks=early_stop_callback,
         profiler=True
         )
 

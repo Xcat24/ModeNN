@@ -705,7 +705,7 @@ class RandomModeNN(BaseModel):
         else:
             DE_dim = torch.sum(torch.tensor(self.hparams.output_dim)).item() + self.input_size
 
-        self.de_layer = RandomDE(order=self.hparams.order, input_dim=self.input_size, output_dim=self.hparams.output_dim)
+        self.de_layer = RandomDE(order=self.hparams.order, input_dim=self.input_size, output_dim=self.hparams.output_dim, pick_from_allterms=self.hparams.pick_from_allterms)
 
         if self.hparams.dropout:
             self.dropout_layer = nn.Dropout(self.hparams.dropout)
@@ -849,6 +849,8 @@ class RandomModeNN(BaseModel):
                                 help='dims of input data, return list')
         parser.add_argument('--full-sec-order', dest='full_sec_order', action='store_true',
                             help='whether to use all 2 order DE terms')
+        parser.add_argument('--pick-from-allterms', dest='pick_from_allterms', action='store_true',
+                            help='whether to random select from all terms')
         parser.add_argument('--order', nargs='+', type=int,
                                 help='order of Mode')
         parser.add_argument('--output-dim', nargs='+', type=int,

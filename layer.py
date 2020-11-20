@@ -25,13 +25,17 @@ class DescartesExtension(nn.Module):
             raise ValueError("the dimension of input tensor is expected 1, 2 or 3")
 
 class RandomDE(nn.Module):
-    def __init__(self, order=[2,], input_dim=784, output_dim=[64,]):
+    def __init__(self, order=[2,], input_dim=784, output_dim=[64,], pick_from_allterms=False):
         super().__init__()
         self.training = False
         self.order = order
         self.input_dim = input_dim
-        self.output_dim = output_dim
-        self.idx = [torch.randint(input_dim, (output_dim[_], order[_])) for _ in range(len(order))]
+        if pick_from_allterms:
+            picknum_from_order = torch.randint(len(order), (output_dim[0],))
+            self.output_dim = [picknum_from_order.eq(_).sum().item() for _ in range(len(order))]
+        else:
+            self.output_dim = output_dim
+        self.idx = [torch.randint(input_dim, (self.output_dim[_], order[_])) for _ in range(len(order))]
         # print(self.idx)
 
     def compute_order(self, x, order, input_dim, output_dim, idx):
