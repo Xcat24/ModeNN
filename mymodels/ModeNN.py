@@ -205,29 +205,29 @@ class ModeNN(BaseModel):
         opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=self.hparams.nesterov)
         return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
 
-    def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
-        tqdm_dict = {'val_loss': avg_loss, 'val_acc': '{0:.5f}'.format(avg_acc)}
-        log_dict = ({'val_loss': avg_loss, 'val_acc': avg_acc})
+    # def validation_epoch_end(self, outputs):
+    #     avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+    #     avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
+    #     tqdm_dict = {'val_loss': avg_loss, 'val_acc': '{0:.5f}'.format(avg_acc)}
+    #     log_dict = ({'val_loss': avg_loss, 'val_acc': avg_acc})
                                       
-        #logger
-        # if self.logger:
-        #     layer_names = list(self._modules)
-        #     for i in range(len(layer_names)):
-        #         mod_para = list(self._modules[layer_names[i]].parameters())
-        #         if mod_para:
-        #             for j in range(len(mod_para)):
-        #                 w = mod_para[j].clone().detach()
-        #                 weight_name=layer_names[i]+'_'+str(w.shape)+'_weight'
-        #                 self.logger.experiment.add_histogram(weight_name, w)
+    #     #logger
+    #     # if self.logger:
+    #     #     layer_names = list(self._modules)
+    #     #     for i in range(len(layer_names)):
+    #     #         mod_para = list(self._modules[layer_names[i]].parameters())
+    #     #         if mod_para:
+    #     #             for j in range(len(mod_para)):
+    #     #                 w = mod_para[j].clone().detach()
+    #     #                 weight_name=layer_names[i]+'_'+str(w.shape)+'_weight'
+    #     #                 self.logger.experiment.add_histogram(weight_name, w)
 
-        return {
-            'avg_val_loss': avg_loss,
-            'val_acc': avg_acc,
-            'progress_bar': tqdm_dict,
-            'log': log_dict
-            }
+    #     return {
+    #         'avg_val_loss': avg_loss,
+    #         'val_acc': avg_acc,
+    #         'progress_bar': tqdm_dict,
+    #         'log': log_dict
+    #         }
 
     def test_step(self, batch, batch_nb):
         x, y = batch
@@ -747,39 +747,10 @@ class RandomModeNN(BaseModel):
         # out = self.softmax(out)
         return out
 
-    def de_forward(self, x):
-        origin = torch.flatten(x, 1)
-        out = self.de_layer(origin)
-        de_out = torch.cat([origin, out], dim=-1)
-        return de_out
-
     def configure_optimizers(self):
         opt = torch.optim.SGD(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay, momentum=self.hparams.momentum, nesterov=self.hparams.nesterov)
         return [opt], [torch.optim.lr_scheduler.MultiStepLR(opt, milestones=self.hparams.lr_milestones, gamma=self.hparams.lr_gamma)]
 
-    def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
-        tqdm_dict = {'val_loss': avg_loss.item(), 'val_acc': '{0:.5f}'.format(avg_acc.item())}
-        log_dict = ({'val_loss': avg_loss.item(), 'val_acc': avg_acc.item()})
-                                      
-        #logger
-        # if self.logger:
-        #     layer_names = list(self._modules)
-        #     for i in range(len(layer_names)):
-        #         mod_para = list(self._modules[layer_names[i]].parameters())
-        #         if mod_para:
-        #             for j in range(len(mod_para)):
-        #                 w = mod_para[j].clone().detach()
-        #                 weight_name=layer_names[i]+'_'+str(w.shape)+'_weight'
-        #                 self.logger.experiment.add_histogram(weight_name, w)
-
-        return {
-            'avg_val_loss': avg_loss,
-            'val_acc': avg_acc,
-            'progress_bar': tqdm_dict,
-            'log': log_dict
-            }
 
     def test_step(self, batch, batch_nb):
         x, y = batch
