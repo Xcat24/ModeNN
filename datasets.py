@@ -9,109 +9,163 @@ from PIL import ImageDraw, Image
 import numpy as np
 import math
 
-#generate triangle, square, circle patterns, 10*10 pixels each
-bg = np.ones((100,100), dtype=np.uint8)*255
-bg = Image.fromarray(bg)
+# #generate triangle, square, circle patterns, 10*10 pixels each
+# bg = np.ones((100,100), dtype=np.uint8)*255
+# bg = Image.fromarray(bg)
 
-draw = ImageDraw.Draw(bg)
-# draw.rectangle([3,3,47,47], 'black', 'black')
-# draw.ellipse([3,3,43,43], 'black', 'black')
-draw.polygon([3,43, 3,3, 43,20], 'black', 'black')
+# draw = ImageDraw.Draw(bg)
+# # draw.rectangle([3,3,47,47], 'black', 'black')
+# # draw.ellipse([3,3,43,43], 'black', 'black')
+# draw.polygon([3,43, 3,3, 43,20], 'black', 'black')
 
-bg.save('test.jpg')
-bg = np.array(bg)
-print(bg)
+# bg.save('test.jpg')
+# bg = np.array(bg)
+# print(bg)
 
-#produce circle_square numpy data
-def gen_point():
-    bound = math.sqrt(math.pi/8)
-    x = np.random.uniform(-bound, bound)
-    y = np.random.uniform(-bound, bound)
-    if math.sqrt(x**2 + y**2) > 0.5:
-        label = np.array([0,])
-    else:
-        label = np.array([1,])
+# #produce circle_square numpy data
+# def gen_point():
+#     bound = math.sqrt(math.pi/8)
+#     x = np.random.uniform(-bound, bound)
+#     y = np.random.uniform(-bound, bound)
+#     if math.sqrt(x**2 + y**2) > 0.5:
+#         label = np.array([0,])
+#     else:
+#         label = np.array([1,])
     
-    return np.array([[x,y]]), label
+#     return np.array([[x,y]]), label
 
-train_data, train_label = gen_point()
-for i in range(999):
-    data, label = gen_point()
-    train_data = np.vstack([train_data, data])
-    train_label = np.concatenate([train_label, label])
-print(np.sum(train_label))
+# train_data, train_label = gen_point()
+# for i in range(999):
+#     data, label = gen_point()
+#     train_data = np.vstack([train_data, data])
+#     train_label = np.concatenate([train_label, label])
+# print(np.sum(train_label))
 
-val_data, val_label = gen_point()
-for i in range(399):
-    data, label = gen_point()
-    val_data = np.vstack([val_data, data])
-    val_label = np.concatenate([val_label, label])
-print(np.sum(val_label))
+# val_data, val_label = gen_point()
+# for i in range(399):
+#     data, label = gen_point()
+#     val_data = np.vstack([val_data, data])
+#     val_label = np.concatenate([val_label, label])
+# print(np.sum(val_label))
 
-np.save('/disk/Dataset/circle_square/pytorch_numpy_data/train_data.npy', train_data)
-np.save('/disk/Dataset/circle_square/pytorch_numpy_data/val_data.npy', val_data)
-np.save('/disk/Dataset/circle_square/pytorch_numpy_data/train_label.npy', train_label)
-np.save('/disk/Dataset/circle_square/pytorch_numpy_data/val_label.npy', val_label)
+# np.save('/disk/Dataset/circle_square/pytorch_numpy_data/train_data.npy', train_data)
+# np.save('/disk/Dataset/circle_square/pytorch_numpy_data/val_data.npy', val_data)
+# np.save('/disk/Dataset/circle_square/pytorch_numpy_data/train_label.npy', train_label)
+# np.save('/disk/Dataset/circle_square/pytorch_numpy_data/val_label.npy', val_label)
 
-#produce T-C numpy data
-def gen_pixel():
-    return 0.25*np.random.random() + 0.25
+# #produce T-C numpy data
+# def gen_pixel():
+#     return 0.25*np.random.random() + 0.25
 
-def produce_t():
-    t_1 = np.array([[1., 1., 1.],[-1., 1., -1.],[-1., 1., -1.]])
-    t_2 = np.array([[-1., 1., -1.],[-1., 1., -1.],[1., 1., 1.]])
-    for t in [t_1, t_2, t_1.T, t_2.T]:
-        for i in range(9):
-            t[i//3][i%3] = gen_pixel()*t[i//3][i%3]
-    return np.array([t_1, t_2, t_1.T, t_2.T])
+# def produce_t():
+#     t_1 = np.array([[1., 1., 1.],[-1., 1., -1.],[-1., 1., -1.]])
+#     t_2 = np.array([[-1., 1., -1.],[-1., 1., -1.],[1., 1., 1.]])
+#     for t in [t_1, t_2, t_1.T, t_2.T]:
+#         for i in range(9):
+#             t[i//3][i%3] = gen_pixel()*t[i//3][i%3]
+#     return np.array([t_1, t_2, t_1.T, t_2.T])
 
-def produce_c():
-    c_1 = np.array([[-1., 1., 1.],[-1., 1., -1.],[-1., 1., 1.]])
-    c_2 = np.array([[1., 1., -1.],[-1., 1., -1.],[1., 1., -1.]])
-    for c in [c_1, c_2, c_1.T, c_2.T]:
-        for i in range(9):
-            c[i//3][i%3] = gen_pixel()*c[i//3][i%3]
-    return np.array([c_1, c_2, c_1.T, c_2.T])
+# def produce_c():
+#     c_1 = np.array([[-1., 1., 1.],[-1., 1., -1.],[-1., 1., 1.]])
+#     c_2 = np.array([[1., 1., -1.],[-1., 1., -1.],[1., 1., -1.]])
+#     for c in [c_1, c_2, c_1.T, c_2.T]:
+#         for i in range(9):
+#             c[i//3][i%3] = gen_pixel()*c[i//3][i%3]
+#     return np.array([c_1, c_2, c_1.T, c_2.T])
 
-train_data = produce_t()
-for _ in range(124):
-    train_data = np.vstack([train_data, produce_t()])
+# train_data = produce_t()
+# for _ in range(124):
+#     train_data = np.vstack([train_data, produce_t()])
 
-for _ in range(125):
-    train_data = np.vstack([train_data, produce_c()])
+# for _ in range(125):
+#     train_data = np.vstack([train_data, produce_c()])
 
-train_label = np.concatenate((np.zeros(500, dtype=np.int), np.ones(500, dtype=np.int)))
+# train_label = np.concatenate((np.zeros(500, dtype=np.int), np.ones(500, dtype=np.int)))
 
 
-val_data = produce_t()
-for _ in range(49):
-    val_data = np.vstack([val_data, produce_t()])
+# val_data = produce_t()
+# for _ in range(49):
+#     val_data = np.vstack([val_data, produce_t()])
 
-for _ in range(50):
-    val_data = np.vstack([val_data, produce_c()])
+# for _ in range(50):
+#     val_data = np.vstack([val_data, produce_c()])
 
-val_label = np.concatenate((np.zeros(200, dtype=np.int), np.ones(200, dtype=np.int)))
+# val_label = np.concatenate((np.zeros(200, dtype=np.int), np.ones(200, dtype=np.int)))
 
-np.save('/disk/Dataset/T-C/pytorch_numpy_data/train_data.npy', train_data)
-np.save('/disk/Dataset/T-C/pytorch_numpy_data/val_data.npy', val_data)
-np.save('/disk/Dataset/T-C/pytorch_numpy_data/train_label.npy', train_label)
-np.save('/disk/Dataset/T-C/pytorch_numpy_data/val_label.npy', val_label)
+# np.save('/disk/Dataset/T-C/pytorch_numpy_data/train_data.npy', train_data)
+# np.save('/disk/Dataset/T-C/pytorch_numpy_data/val_data.npy', val_data)
+# np.save('/disk/Dataset/T-C/pytorch_numpy_data/train_label.npy', train_label)
+# np.save('/disk/Dataset/T-C/pytorch_numpy_data/val_label.npy', val_label)
 
-#produce XOR numpy data
+# #produce XOR numpy data
+# num = 500
+# train_pos = np.vstack((np.stack((np.random.random(250), np.random.random(250))).T, np.stack((-np.random.random(250), -np.random.random(250))).T))
+# train_neg = np.vstack((np.stack((-np.random.random(250), np.random.random(250))).T, np.stack((np.random.random(250), -np.random.random(250))).T))
+# train_data = np.vstack((train_pos, train_neg))
+# train_label = np.concatenate((np.zeros(500, dtype=np.int), np.ones(500, dtype=np.int)))
+
+# val_pos = np.vstack((np.stack((np.random.random(100), np.random.random(100))).T, np.stack((-np.random.random(100), -np.random.random(100))).T))
+# val_neg = np.vstack((np.stack((-np.random.random(100), np.random.random(100))).T, np.stack((np.random.random(100), -np.random.random(100))).T))
+# val_data = np.vstack((val_pos, val_neg))
+# val_label = np.concatenate((np.zeros(200, dtype=np.int), np.ones(200, dtype=np.int)))
+# np.save('/disk/Dataset/XOR/pytorch_numpy_data/train_data.npy', train_data)
+# np.save('/disk/Dataset/XOR/pytorch_numpy_data/val_data.npy', val_data)
+# np.save('/disk/Dataset/XOR/pytorch_numpy_data/train_label.npy', train_label)
+# np.save('/disk/Dataset/XOR/pytorch_numpy_data/val_label.npy', val_label)
+
+#tf-playground-like XOR data for CrossEntropy
 num = 500
-train_pos = np.vstack((np.stack((np.random.random(250), np.random.random(250))).T, np.stack((-np.random.random(250), -np.random.random(250))).T))
-train_neg = np.vstack((np.stack((-np.random.random(250), np.random.random(250))).T, np.stack((np.random.random(250), -np.random.random(250))).T))
+train_pos = np.vstack((np.stack((np.random.randint(100,500,(250,))/100, np.random.randint(100,500,(250,))/100)).T, np.stack((-np.random.randint(100,500,(250,))/100, -np.random.randint(100,500,(250,))/100)).T))
+train_neg = np.vstack((np.stack((-np.random.randint(100,500,(250,))/100, np.random.randint(100,500,(250,))/100)).T, np.stack((np.random.randint(100,500,(250,))/100, -np.random.randint(100,500,(250,))/100)).T))
 train_data = np.vstack((train_pos, train_neg))
 train_label = np.concatenate((np.zeros(500, dtype=np.int), np.ones(500, dtype=np.int)))
 
-val_pos = np.vstack((np.stack((np.random.random(100), np.random.random(100))).T, np.stack((-np.random.random(100), -np.random.random(100))).T))
-val_neg = np.vstack((np.stack((-np.random.random(100), np.random.random(100))).T, np.stack((np.random.random(100), -np.random.random(100))).T))
+val_pos = np.vstack((np.stack((np.random.randint(100,500,(100,))/100, np.random.randint(100,500,(100,))/100)).T, np.stack((-np.random.randint(100,500,(100,))/100, -np.random.randint(100,500,(100,))/100)).T))
+val_neg = np.vstack((np.stack((-np.random.randint(100,500,(100,))/100, np.random.randint(100,500,(100,))/100)).T, np.stack((np.random.randint(100,500,(100,))/100, -np.random.randint(100,500,(100,))/100)).T))
 val_data = np.vstack((val_pos, val_neg))
 val_label = np.concatenate((np.zeros(200, dtype=np.int), np.ones(200, dtype=np.int)))
-np.save('/disk/Dataset/XOR/pytorch_numpy_data/train_data.npy', train_data)
-np.save('/disk/Dataset/XOR/pytorch_numpy_data/val_data.npy', val_data)
-np.save('/disk/Dataset/XOR/pytorch_numpy_data/train_label.npy', train_label)
-np.save('/disk/Dataset/XOR/pytorch_numpy_data/val_label.npy', val_label)
+print(val_data.shape)
+print(val_label.shape)
+np.save('/disk/Dataset/XOR/tf_playground_like_crossentropy/train_data.npy', train_data)
+np.save('/disk/Dataset/XOR/tf_playground_like_crossentropy/val_data.npy', val_data)
+np.save('/disk/Dataset/XOR/tf_playground_like_crossentropy/train_label.npy', train_label)
+np.save('/disk/Dataset/XOR/tf_playground_like_crossentropy/val_label.npy', val_label)
+
+#tf-playground-like XOR data
+num = 500
+train_pos = np.vstack((np.stack((np.random.randint(100,500,(250,))/100, np.random.randint(100,500,(250,))/100)).T, np.stack((-np.random.randint(100,500,(250,))/100, -np.random.randint(100,500,(250,))/100)).T))
+train_neg = np.vstack((np.stack((-np.random.randint(100,500,(250,))/100, np.random.randint(100,500,(250,))/100)).T, np.stack((np.random.randint(100,500,(250,))/100, -np.random.randint(100,500,(250,))/100)).T))
+train_data = np.vstack((train_pos, train_neg))
+train_label = np.concatenate((np.ones(500, dtype=np.float32), np.zeros(500, dtype=np.float32) - 1)).reshape((-1,1))
+
+val_pos = np.vstack((np.stack((np.random.randint(100,500,(100,))/100, np.random.randint(100,500,(100,))/100)).T, np.stack((-np.random.randint(100,500,(100,))/100, -np.random.randint(100,500,(100,))/100)).T))
+val_neg = np.vstack((np.stack((-np.random.randint(100,500,(100,))/100, np.random.randint(100,500,(100,))/100)).T, np.stack((np.random.randint(100,500,(100,))/100, -np.random.randint(100,500,(100,))/100)).T))
+val_data = np.vstack((val_pos, val_neg))
+val_label = np.concatenate((np.ones(200, dtype=np.float32), np.zeros(200, dtype=np.float32) - 1)).reshape((-1,1))
+print(val_data.shape)
+print(val_label.shape)
+np.save('/disk/Dataset/XOR/tf_playground_like/train_data.npy', train_data)
+np.save('/disk/Dataset/XOR/tf_playground_like/val_data.npy', val_data)
+np.save('/disk/Dataset/XOR/tf_playground_like/train_label.npy', train_label)
+np.save('/disk/Dataset/XOR/tf_playground_like/val_label.npy', val_label)
+
+#optimized XOR data
+num = 500
+train_pos = np.vstack((np.stack((np.random.randint(100,900,(250,))/1000, np.random.randint(100,900,(250,))/1000)).T, np.stack((-np.random.randint(100,900,(250,))/1000, -np.random.randint(100,900,(250,))/1000)).T))
+train_neg = np.vstack((np.stack((-np.random.randint(100,900,(250,))/1000, np.random.randint(100,900,(250,))/1000)).T, np.stack((np.random.randint(100,900,(250,))/1000, -np.random.randint(100,900,(250,))/1000)).T))
+train_data = np.vstack((train_pos, train_neg))
+train_label = np.concatenate((np.zeros(500, dtype=np.int), np.ones(500, dtype=np.int))).reshape((-1,1))
+
+val_pos = np.vstack((np.stack((np.random.randint(100,900,(100,))/1000, np.random.randint(100,900,(100,))/1000)).T, np.stack((-np.random.randint(100,900,(100,))/1000, -np.random.randint(100,900,(100,))/1000)).T))
+val_neg = np.vstack((np.stack((-np.random.randint(100,900,(100,))/1000, np.random.randint(100,900,(100,))/1000)).T, np.stack((np.random.randint(100,900,(100,))/1000, -np.random.randint(100,900,(100,))/1000)).T))
+val_data = np.vstack((val_pos, val_neg))
+val_label = np.concatenate((np.zeros(200, dtype=np.int), np.ones(200, dtype=np.int))).reshape((-1,1))
+print(val_data.shape)
+print(val_label.shape)
+np.save('/disk/Dataset/XOR/optimized/train_data.npy', train_data)
+np.save('/disk/Dataset/XOR/optimized/val_data.npy', val_data)
+np.save('/disk/Dataset/XOR/optimized/train_label.npy', train_label)
+np.save('/disk/Dataset/XOR/optimized/val_label.npy', val_label)
 
 #produce Iris numpy data
 iris=datasets.load_iris()

@@ -35,7 +35,7 @@ class BaseModel(LightningModule):
         #     for i in range(len(self.logger.experiment)):
         #         self.logger[i].experiment.log({'train_loss': loss})
 
-        return {'loss': loss}
+        return loss
 
     def validation_step(self, batch, batch_nb):
         x, y = batch
@@ -45,6 +45,9 @@ class BaseModel(LightningModule):
         # calculate acc
         labels_hat = torch.argmax(out, dim=1)
         val_acc = self.metric['accuracy'](labels_hat, y)
+        # labels_hat = torch.argmax(out, dim=1, keepdim=True)
+        # res  = labels_hat.eq(y.view_as(labels_hat)).sum().item()
+        # val_acc = torch.tensor(res / len(x))
 
         return {'val_loss': loss, 'val_acc': val_acc}
 

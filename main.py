@@ -109,6 +109,8 @@ def get_args():
                                help='whether to turn picture to gray')
     parent_parser.add_argument('--net', default='wide_resnet', type=str, 
                                 help='network architecture module to load')
+    parent_parser.add_argument('--loss', default='CrossEntropyLoss', type=str, 
+                                help='Loss function to use')
     parent_parser.add_argument('-b', '--batch-size', default=256, type=int, metavar='N',
                                 help='mini-batch size (default: 256), this is the total '
                                  'batch size of all GPUs on the current node when '
@@ -134,7 +136,7 @@ def main(hparams):
         test_data = test_dataloader(hparams.dataset, hparams.data_dir, hparams.batch_size, hparams.num_workers, random_sample=hparams.random_sample_trans, random_in_dim=hparams.random_trans_in_dim,
                                      random_out_dim=hparams.random_trans_out_dim, svd=hparams.svd, dct=hparams.dct, dct_dim=hparams.dct_dim, de=hparams.de_trans,
                                      randomsample_de=hparams.randomsample_de_trans, group_num=hparams.sample_group_num, order=hparams.de_trans_order)
-    model = mymodels.__dict__[hparams.net](hparams, nn.CrossEntropyLoss())
+    model = mymodels.__dict__[hparams.net](hparams, nn.__dict__[hparams.loss]())
     # model = mymodels.BaseModel(hparams, nn.CrossEntropyLoss())
     print(model)
     if hparams.pretrained:
@@ -143,7 +145,7 @@ def main(hparams):
             if name in state_dict:
                 with torch.no_grad():
                     para.copy_(state_dict[name])
-                para.requires_grad = False
+                # para.requires_grad = False
     
     # summary(model, input_size=tuple(hparams.input_size), device='cpu')
 
