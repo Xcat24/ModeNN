@@ -33,9 +33,12 @@ class XOR_MLP(BaseModel):
         loss = self.loss(out, y)
 
         # calculate acc
-        res = out.squeeze()*y.squeeze()
-        res = torch.ge(res, 0).sum().item()
-        val_acc = torch.tensor(res / len(x))
+        # res = out.squeeze()*y.squeeze()
+        # res = torch.ge(res, 0).sum().item()
+        # val_acc = torch.tensor(res / len(x))
+        labels_hat = torch.argmax(out, dim=1)
+        y = torch.argmax(y, dim=1)
+        val_acc = torch.sum(y == labels_hat) / (len(y) * 1.0)
 
         return {'val_loss': loss, 'val_acc': val_acc}
 
@@ -142,6 +145,8 @@ class MLP(BaseModel):
         x = torch.nn.Flatten()(x)
         out = self.fc(x)
         out = self.out_layer(out)
+        # out = F.tanh(out)
+        # out = F.softmax(out)
 
         return out
 

@@ -30,10 +30,7 @@ class BaseModel(LightningModule):
         x, y = batch
         out = self.forward(x)
         loss = self.loss(out, y)
-
-        # if self.logger is not None:
-        #     for i in range(len(self.logger.experiment)):
-        #         self.logger[i].experiment.log({'train_loss': loss})
+        self.log('train_loss', loss, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
 

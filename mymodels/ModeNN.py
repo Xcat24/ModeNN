@@ -100,14 +100,18 @@ class XOR_ModeNN(BaseModel):
         print('{} order Descartes Extension'.format(self.hparams.order))
         DE_dim = compute_mode_dim([self.hparams.input_size for _ in range(self.hparams.order-1)]) + self.hparams.input_size
         self.de_layer = Mode(order_dim=[self.hparams.input_size for _ in range(self.hparams.order-1)])
+        if self.hparams.norm:
+            self.norm_layer = nn.BatchNorm1d(DE_dim)
         self.fc = nn.Linear(DE_dim, self.hparams.num_classes)
 
     def forward(self, x):
         origin = x
         out = self.de_layer(origin)
         de_out = torch.cat([origin, out], dim=-1)
+        if self.hparams.norm:
+            de_out = self.norm_layer(de_out)
         out = self.fc(de_out)
-        # out = F.tanh(out)
+        out = F.tanh(out)
         return out
 
     def configure_optimizers(self):
@@ -119,9 +123,12 @@ class XOR_ModeNN(BaseModel):
         out = self.forward(x)
         loss = self.loss(out, y)
         # calculate acc
-        res = out.squeeze()*y.squeeze()
-        res = torch.ge(res, 0).sum().item()
-        val_acc = torch.tensor(res / len(x))
+        # res = out.squeeze()*y.squeeze()
+        # res = torch.ge(res, 0).sum().item()
+        # val_acc = torch.tensor(res / len(x))
+        labels_hat = torch.argmax(out, dim=1)
+        y = torch.argmax(y, dim=1)
+        val_acc = torch.sum(y == labels_hat) / (len(y) * 1.0)
         return {'val_loss': loss, 'val_acc': val_acc}
 
     @staticmethod
@@ -139,6 +146,8 @@ class XOR_ModeNN(BaseModel):
                                 help='dims of input data, return int')
         parser.add_argument('--order', default=2, type=int,
                                 help='order of Mode')
+        parser.add_argument('--norm', action='store_true',
+                               help='whether to use normalization layer')
         return parser
 
 class ModeNN(BaseModel):
@@ -191,8 +200,10 @@ class ModeNN(BaseModel):
             de_out = self.hidden_bn(F.relu(self.hidden(de_out))) #实际上是hidde_out
 
         out = self.fc(de_out)
-        # out = F.tanh(out)
-        # out = F.softmax(out)
+        if self.hparams.out_tanh:
+            out = F.tanh(out)
+        if self.hparams.softmax:
+            out = F.softmax(out)
         return out
 
     def de_forward(self, x):
@@ -300,6 +311,10 @@ class ModeNN(BaseModel):
                                 help='order of Mode')
         parser.add_argument('--norm', action='store_true',
                                help='whether to use normalization layer')
+        parser.add_argument('--out-tanh', action='store_true',
+                               help='whether to use tanh activation in output layer')
+        parser.add_argument('--softmax', action='store_true',
+                               help='whether to use softmax in output layer')
         parser.add_argument('--de-relu', action='store_true',
                                help='whether to use a relu after normalization layer on de data')
         parser.add_argument('--pooling',default=0, type=int,

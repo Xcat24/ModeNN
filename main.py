@@ -47,6 +47,8 @@ def get_args():
                                help='path to save tensorboard')
     parent_parser.add_argument('--is-checkpoint', action='store_true',
                                 help='whether to use check point callback')
+    parent_parser.add_argument('--model-name', type=str,
+                               help='the model name')
     parent_parser.add_argument('--saved-path', metavar='DIR', type=str,
                                help='path to save model')
     parent_parser.add_argument('--dataset', type=str,
@@ -145,7 +147,7 @@ def main(hparams):
             if name in state_dict:
                 with torch.no_grad():
                     para.copy_(state_dict[name])
-                # para.requires_grad = False
+                para.requires_grad = False
     
     # summary(model, input_size=tuple(hparams.input_size), device='cpu')
 
@@ -166,8 +168,10 @@ def main(hparams):
 
     if hparams.is_checkpoint:
         checkpoint_callback = ModelCheckpoint(
-            filepath=hparams.saved_path,
-            save_top_k = 1,
+            dirpath=hparams.saved_path,
+            prefix=hparams.model_name,
+            filename='_{epoch:03d}_{val_loss:.4f}-{val_acc:.5f}',
+            save_top_k = 2,
             verbose=True,
             monitor='val_acc',
             mode='max'
@@ -210,7 +214,7 @@ def main(hparams):
         # row_log_interval=80,
         # log_save_interval=80,
         callbacks=early_stop_callback,
-        profiler=True
+        profiler='simple'
         )
 
     if hparams.evaluate:
