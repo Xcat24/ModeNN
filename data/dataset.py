@@ -2,14 +2,15 @@
 import torch
 import torchvision
 import os
-import logging as log
-import pandas as pd
 import numpy as np
 from PIL import Image
 import cv2
 from matplotlib import pyplot as plt
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
+from torchvision import transforms
+from .feature_transform import DCT_transform, SVD_transform, RandomPick_transform, RandomSampleDE_transform, DE_transform, HOG_transform
+import medmnist
+from medmnist import INFO, Evaluator
 
 class NumpyDataset(Dataset):
     def __init__(self, root_dir, train=False):
@@ -66,60 +67,7 @@ class ORLdataset(Dataset):
 
         return sample
 
-class SVD_transform(object):
-    def __call__(self, sample):
-        u,s,v = torch.svd(sample)
-        return s
 
-class DE_transform(object):
-    def __init__(self, order=2):
-        self.order = order
-
-    def __call__(self, sample):
-        sample = sample.view((sample.shape[0], -1))
-        de = torch.cat([torch.stack([torch.prod(torch.combinations(a, i+1, with_replacement=True), dim=1) for a in sample]) for i in range(self.order)], dim=-1)
-        return de.squeeze()
-
-class RandomSampleDE_transform(object):
-    def __init__(self, input_size_x, input_size_y, group_num, order):
-        self.order = order
-        self.group_num = group_num
-        self.x = torch.normal(mean=input_size_x/2, std=4, size=(group_num, 3)).long().clamp(0,input_size_x-1)
-        self.y = torch.normal(mean=input_size_y/2, std=4, size=(group_num, 3)).long().clamp(0,input_size_y-1)
-
-    def __call__(self, sample):
-        assert len(sample.shape) == 3
-        assert isinstance(sample, torch.Tensor)
-        origin = torch.flatten(sample, 1)
-        result = []
-        for i in range(self.group_num):
-            tmp = torch.index_select(sample, dim=1, index=self.x[i])
-            tmp = torch.index_select(tmp, dim=2, index=self.y[i])
-            result.append(tmp)
-        random_sample = torch.stack(result, dim=1).view(-1, 9)
-        de = torch.cat([torch.stack([torch.prod(torch.combinations(a, i+2, with_replacement=True), dim=1) for a in random_sample]) for i in range(self.order - 1)], dim=-1)
-        de = de.squeeze().view(sample.shape[0],-1)
-        return torch.cat([origin, de], dim=-1).squeeze()
-
-class DCT_transform(object):
-    def __init__(self, dim):
-        self.dim = dim
-
-    def __call__(self, sample):
-        assert len(sample.shape) == 3
-        tmp = sample.numpy()
-        tmp = [torch.tensor(cv2.dct(x))[:self.dim, :self.dim] for x in tmp]
-        return torch.stack(tmp, dim=0)
-
-
-class RandomPick_transform(object):
-    def __init__(self, input_dim=784, output_dim=64):
-        self.mask = torch.randint(input_dim, (output_dim,))
-
-    def __call__(self, sample):
-        origin = torch.flatten(sample, 1)
-        selected = torch.index_select(origin,dim=1,index=self.mask)
-        return (origin, selected)
 
 def gray_cifar_train_dataloader(dataset, data_dir, batch_size, num_workers):
     train_transform = transforms.Compose([
@@ -157,8 +105,7 @@ def gray_cifar_val_dataloader(dataset, data_dir, batch_size, num_workers):
 
 
 def train_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=False,random_in_dim=784, random_out_dim=316,
-                    dct=False, dct_dim=10, svd=False, de=False, randomsample_de=False, group_num=64, order=2):
-    log.info('Training data loader called.')
+                    dct=False, dct_dim=10, svd=False, de=False, randomsample_de=False, group_num=64, order=2, resize=(28,28), augmentation=False, hog=False):
     if dataset == 'MNIST':
         transformers = [transforms.ToTensor()]
         if dct:
@@ -171,12 +118,25 @@ def train_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=F
             transformers.append(DE_transform(order=order))
         if randomsample_de:
             transformers.append(RandomSampleDE_transform(28,28, group_num, order))
+        if hog:
+            transformers.append(HOG_transform(4,4,7))
         
         trans = transforms.Compose(transformers)
         train_dataset = torchvision.datasets.MNIST(root=data_dir,
                                             train=True,
                                             transform=trans,
                                             download=True)
+    
+    elif dataset.split('.')[0] == 'MedMNIST':
+        data_flag = dataset.split('.')[1]
+        info = INFO[data_flag]
+        DataClass = getattr(medmnist, info['python_class'])
+        transformers = transforms.Compose([
+                            transforms.Grayscale(),
+                            transforms.ToTensor(),
+                            transforms.Normalize(mean=[.5], std=[.5])
+                        ])
+        train_dataset = DataClass(split='train', transform=transformers, download=True, root=data_dir)
 
     elif dataset == 'ORL':
         train_dataset = ORLdataset(train=True,
@@ -200,17 +160,26 @@ def train_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=F
     elif dataset == 'NUMPY':
         train_dataset = NumpyDataset(root_dir=data_dir, train=True)
 
+    elif dataset == 'ImageNet':
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        train_dataset = torchvision.datasets.ImageFolder(root=os.path.join(data_dir, 'train'), 
+                                                        transform=transforms.Compose([
+                                                                    transforms.RandomResizedCrop(224),
+                                                                    transforms.RandomHorizontalFlip(),
+                                                                    transforms.ToTensor(),
+                                                                    normalize,
+                                                                    ]))
+
     # Data loader
     return torch.utils.data.DataLoader(dataset=train_dataset,
                                             batch_size=batch_size,
-                                            shuffle=True,
+                                            shuffle=False,
                                             num_workers=num_workers,
                                             pin_memory=True)
 
 
 def val_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=False,random_in_dim=784, random_out_dim=316,
-                    dct=False, dct_dim=10, svd=False, de=False, randomsample_de=False, group_num=64, order=2):
-    log.info('Valuating data loader called.')
+                    dct=False, dct_dim=10, svd=False, de=False, randomsample_de=False, group_num=64, order=2, resize=(28,28), hog=False):
     if dataset == 'MNIST':
         # MNIST dataset
         transformers = [transforms.ToTensor()]
@@ -224,11 +193,24 @@ def val_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=Fal
             transformers.append(DE_transform(order=order))
         if randomsample_de:
             transformers.append(RandomSampleDE_transform(28,28, group_num, order))
+        if hog:
+            transformers.append(HOG_transform(4,4,7))
         
         trans = transforms.Compose(transformers)
         val_dataset = torchvision.datasets.MNIST(root=data_dir,
                                             train=False,
                                             transform=trans)
+
+    elif dataset.split('.')[0] == 'MedMNIST':
+        data_flag = dataset.split('.')[1]
+        info = INFO[data_flag]
+        DataClass = getattr(medmnist, info['python_class'])
+        transformers = transforms.Compose([
+                            transforms.Grayscale(),
+                            transforms.ToTensor(),
+                            transforms.Normalize(mean=[.5], std=[.5])
+                        ])
+        val_dataset = DataClass(split='val', transform=transformers, download=True, root=data_dir)
 
     elif dataset == 'ORL':
         val_dataset = ORLdataset(train=False,
@@ -243,6 +225,16 @@ def val_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=Fal
     elif dataset == 'NUMPY':
         val_dataset = NumpyDataset(root_dir=data_dir, train=False)
 
+    elif dataset == 'ImageNet':
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        val_dataset = torchvision.datasets.ImageFolder(root=os.path.join(data_dir, 'val'), 
+                                                        transform=transforms.Compose([
+                                                                    transforms.Resize(256),
+                                                                    transforms.RandomResizedCrop(224),
+                                                                    transforms.ToTensor(),
+                                                                    normalize,
+                                                                    ]))
+
     return torch.utils.data.DataLoader(dataset=val_dataset,
                                             batch_size=batch_size,
                                             shuffle=False,
@@ -251,7 +243,7 @@ def val_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=Fal
 
 
 def test_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=False,random_in_dim=784, random_out_dim=316,
-                    dct=False, dct_dim=10, svd=False, de=False, randomsample_de=False, group_num=64, order=2):
+                    dct=False, dct_dim=10, svd=False, de=False, randomsample_de=False, group_num=64, order=2, resize=(28,28), hog=False):
     if dataset == 'MNIST':
         # MNIST dataset
         transformers = [transforms.ToTensor()]
@@ -265,11 +257,24 @@ def test_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=Fa
             transformers.append(DE_transform(order=order))
         if randomsample_de:
             transformers.append(RandomSampleDE_transform(28,28, group_num, order))
+        if hog:
+            transformers.append(HOG_transform(4,4,7))
         
         trans = transforms.Compose(transformers)
         test_dataset = torchvision.datasets.MNIST(root=data_dir,
                                             train=False,
                                             transform=trans)
+
+    elif dataset.split('.')[0] == 'MedMNIST':
+        data_flag = dataset.split('.')[1]
+        info = INFO[data_flag]
+        DataClass = getattr(medmnist, info['python_class'])
+        transformers = transforms.Compose([
+                            transforms.Grayscale(),
+                            transforms.ToTensor(),
+                            transforms.Normalize(mean=[.5], std=[.5])
+                        ])
+        test_dataset = DataClass(split='test', transform=transformers, download=True, root=data_dir)
 
     elif dataset == 'ORL':
         test_dataset = ORLdataset(train=False,
@@ -289,37 +294,3 @@ def test_dataloader(dataset, data_dir, batch_size, num_workers, random_sample=Fa
                                             num_workers=num_workers,
                                             pin_memory=True)
 
-if __name__ == '__main__':
-    #test
-    x = torchvision.datasets.MNIST(root='/home/xucong/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), DCT_transform(10)]))
-    # x = torchvision.datasets.MNIST(root='/home/xucong/Data/MNIST', train=True, transform=transforms.Compose([transforms.ToTensor(), RandomSampleDE_transform(28,28,4,5)]))
-
-    data = DataLoader(x, batch_size=2, shuffle=False)
-    print(data.__len__())
-    example = x.__getitem__(1)
-
-    for batch in data:
-        x, y = batch
-        print(x)
-        print(y)
-
-
-    plt.figure()
-    plt.imshow(example[0][0], cmap='gray')
-    plt.savefig('mnist-dct-%s.jpg'%(example[1]))
-
-    u,s,v = torch.svd(example[0][0])
-    print(s.shape)
-    print(s)
-    new = s*s*s
-    new = torch.diag(new)
-    decode = torch.mm(torch.mm(u,new), v.t())
-    #plot picture
-    plt.figure()
-    plt.imshow(decode, cmap='gray')
-    plt.savefig('3-order-after.jpg')
-
-    for i_batch, sample_batched in enumerate(data):
-        print(i_batch, sample_batched['image'].size(), sample_batched['labels'].size())
-
-    print('success')
