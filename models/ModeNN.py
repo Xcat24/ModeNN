@@ -26,7 +26,7 @@ class ModeNN(pl.LightningModule):
         DE_dim = compute_mode_dim([self.input_size for _ in range(self.hparams.order-1)]) + self.input_size
         print('dims after DE: ', DE_dim)
         print('Estimated Total Size (MB): ', DE_dim*4/(1024*1024))
-        self.de_layer = Mode(order_dim=[self.input_size for _ in range(self.hparams.order-1)])
+        self.de_layer = Mode(self.hparams.order)
 
         if self.hparams.dropout:
             self.dropout_layer = nn.Dropout(self.hparams.dropout)
